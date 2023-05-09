@@ -1,0 +1,335 @@
+---
+title: "04 - Single-cell Cell Clustering"
+author: "BTC Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+params:
+  project_name: 'Test'
+  project_object: 'path/to/project_object'
+  input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
+  input_group_plot: 'batch'
+  run_deg: FALSE
+  n_threads: 20
+  thr_quantile: 'q01'
+  thr_npc: 'auto'
+  thr_resolution: 0.25
+  workdir: 'path/to/work_directory'
+  timestamp: !r Sys.Date()
+  auto_save: !r TRUE
+---
+
+------------------------------------------------------------------------
+
+# Project Name: `r params$project_name`
+
+```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Project parameters 
+project_name <- params$project_name
+project_object <- params$project_object
+
+# Inputs and thresholds
+input_features_plot <- strsplit(
+  params$input_features_plot, split = ';')[[1]]
+
+input_group_plot <- strsplit(
+  params$input_group_plot, split = ';')[[1]]
+
+thr_npc <- params$thr_npc
+thr_resolution <- params$thr_resolution
+thr_quantile <- params$thr_quantile
+
+# Flags
+run_deg <- params$run_deg
+n_threads <- params$n_threads
+
+# Script-related parameters
+work_directory <- params$workdir
+timestamp <- params$timestamp
+auto_save <- params$auto_save
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(
+  root.dir = work_directory
+  )
+
+```
+
+## Loading library
+
+```{r library, message = FALSE, warning = FALSE, echo = TRUE}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+library(Seurat)
+library(future)
+library(DT)
+library(ROGUE)
+
+```
+
+## Folder structure
+
+```{r project_directory, message = FALSE, warning = FALSE, echo = TRUE}
+
+if(!dir.exists(work_directory)) {
+  dir.create(work_directory, recursive = T)
+}
+
+for(sub_directory in c('data', 'data/deg', 'figures', 'figures/clustered')) {
+  dir.create(paste0(work_directory, '/', sub_directory))
+}
+
+```
+
+```{r loading_rds, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_object <- readRDS(file = project_object)
+
+# Cell number
+ncell <- dim(seurat_object)[2]
+
+# Knowledge-based parameters
+if(thr_npc == 'auto') {
+  
+  thr_npc <- ifelse(ncell < 50000, 25, 50)
+  
+}
+
+```
+
+```{r basic_input_validation, message = FALSE, warning = FALSE, echo = TRUE}
+
+meta_columns <- colnames(seurat_object@meta.data)
+features_names <- rownames(seurat_object@assays$RNA@counts)
+
+#
+
+input_features_plot <- intersect(input_features_plot, features_names)
+input_group_plot <- intersect(input_group_plot, meta_columns)
+
+```
+
+## Finding neighbors and clusters
+
+```{r finding_neighbors, message = FALSE, warning = FALSE, echo = TRUE}
+
+if('harmony' %in% names(seurat_object@reductions)) {
+  
+  reduction_variable <- 'harmony'
+
+  # Finding clusters
+  seurat_object <- FindNeighbors(
+    object = seurat_object, 
+    reduction = reduction_variable, 
+    dims = 1:thr_npc,
+    graph.name = paste0('snn_npc', thr_npc)
+  )
+
+  seurat_object <- FindClusters(
+    object = seurat_object,
+    graph.name = paste0('snn_npc', thr_npc),
+    resolution = thr_resolution
+  )
+  
+} else {
+  
+  reduction_variable <- 'pca'
+  
+  # Finding clusters
+  seurat_object <- FindNeighbors(
+    object = seurat_object, 
+    reduction = reduction_variable, 
+    dims = 1:thr_npc,
+    graph.name = paste0('snn_npc', thr_npc)
+  )
+
+  seurat_object <- FindClusters(
+    object = seurat_object,
+    graph.name = paste0('snn_npc', thr_npc),
+    resolution = thr_resolution
+  )
+
+    seurat_object <- RunUMAP(
+    object = seurat_object,
+    reduction = reduction_variable, 
+    dims = 1:thr_npc,
+    seed.use = 2203
+  )
+
+}
+
+```
+
+```{r filtering_clusters, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Removing spurious clusters. Findclusters should have already incorporated singletons.
+seurat_cluster_density <- table(seurat_object@meta.data$seurat_clusters)
+seurat_cluster_density <- data.frame(seurat_cluster_density)
+colnames(seurat_cluster_density) <- c('seurat_clusters', 'n_members')
+
+# 
+seurat_cluster_density <- seurat_cluster_density %>%
+  filter(n_members >= 5)
+
+seurat_meaningful_cluster <- 
+  seurat_cluster_density$seurat_clusters
+
+#
+#seurat_object <- subset(
+#  seurat_object,
+#  subset = seurat_clusters %in% seurat_meaningful_cluster
+#)
+
+```
+
+```{r umap_main_plot, message = FALSE, warning = FALSE, echo = TRUE, fig.width = 10, fig.height = 10, dpi = 300}
+
+umap_main <- DimPlot(
+  seurat_object, 
+  reduction = "umap",
+  label = TRUE) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+if(auto_save) {
+  
+  ggsave(plot = umap_main, filename = paste0('figures/clustered/UMAP_MAIN_', timestamp, '.pdf'))
+  
+}
+
+umap_main
+
+```
+
+```{r umap_secondary, message = FALSE, warning = FALSE, echo = TRUE, fig.width = 10, fig.height = 8, dpi = 300}
+
+if(length(input_group_plot) > 0) {
+  
+  umap_group <- DimPlot(seurat_object, reduction = "umap", group.by = input_group_plot, combine = FALSE)
+
+  if(auto_save) {
+  
+    for(idx in 1:length(umap_group)) {
+      
+      umap_temp <-  umap_group[[idx]] + 
+        theme(
+          legend.position = 'top',
+          legend.justification = 'center'
+          )
+
+          ggsave(plot = umap_temp, filename = paste0('figures/clustered/UMAP_GROUPED_', idx, '_', timestamp, '.pdf'))
+  
+    }
+  }
+  
+  patchwork::wrap_plots(umap_group, ncol = 1)
+  
+}
+
+```
+
+```{r umap_feature_plot, message = FALSE, warning = FALSE, echo = TRUE, fig.width = 15, fig.height = 12, dpi = 300}
+
+if(length(input_features_plot) > 0) {
+  
+  umap_feature <- FeaturePlot(seurat_object, features = input_features_plot)
+  
+  if(auto_save) {
+  
+    ggsave(plot = umap_feature, filename = paste0('figures/clustered/UMAP_FEATURED_', timestamp, '.pdf'))
+  
+  }
+
+  umap_feature
+
+}
+
+```
+
+## Differential expression analysis
+
+```{r finding_deg, message = FALSE, warning = FALSE, echo = TRUE, error = TRUE}
+
+if(run_deg) {
+
+  plan("multicore", workers = n_threads)
+  options(future.globals.maxSize = 2000*1024^2)
+
+  all_markers <- FindAllMarkers(
+    object = seurat_object, only.pos = FALSE, 
+    test.use = "t",
+    random.seed = 2203,
+    logfc.threshold = 0.25, 
+    return.thresh = 0.01)
+
+  if(auto_save) {
+    
+    saveRDS(all_markers, file = paste0('data/deg/', project_name, '_deg_analysis_', timestamp, '.RDS'))
+    
+  }
+
+}
+
+```
+
+```{r deg_table, message = FALSE, warning = FALSE, echo = TRUE}
+
+datatable(all_markers, 
+    class = 'cell-border stripe',
+    rownames = FALSE,
+    filter = 'top',
+    width = '100%', 
+    options = list(scrollX = TRUE))
+
+
+```
+
+## Saving Seurat object
+
+```{r object_dump, message = FALSE, warning = FALSE, echo = TRUE}
+
+if(auto_save) {
+  
+  saveRDS(seurat_object, file = paste0(project_name, '_cluster_object_', timestamp, '.RDS'))
+  
+}
+
+```
+
+------------------------------------------------------------------------
+
+## Parameters log
+
+```{r params_log, message = FALSE, warning = FALSE, echo = TRUE}
+
+print(
+  list(
+    project_name = project_name,
+    project_object = project_object,
+    input_group_plot = input_group_plot,
+    thr_npc = thr_npc,
+    work_directory = work_directory,
+    auto_save = auto_save
+    )
+)
+
+```
+
+## Session info
+
+```{r session_info, message = FALSE, warning = FALSE, echo = TRUE}
+
+sessionInfo()
+
+```

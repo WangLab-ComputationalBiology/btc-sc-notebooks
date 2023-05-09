@@ -1,0 +1,281 @@
+---
+title: "03 - Single-cell Batch Correction"
+author: "BTC Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+params:
+  project_name: 'Test'
+  project_object: 'path/to/project_object'
+  input_target_variables: 'batch'
+  thr_npc: 'auto'
+  workdir: 'path/to/work_directory'
+  timestamp: !r Sys.Date()
+  auto_save: !r TRUE
+---
+
+------------------------------------------------------------------------
+
+# Project Name: `r params$project_name`
+
+```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Project parameters 
+project_name <- params$project_name
+project_object <- params$project_object
+
+# Filter and thresholds
+input_target_variables <- strsplit(
+  params$input_target_variables, split = ';')[[1]]
+
+thr_npc <- params$thr_npc
+
+# Script-related parameters
+work_directory <- params$workdir
+timestamp <- params$timestamp
+auto_save <- params$auto_save
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(
+  root.dir = work_directory
+  )
+
+```
+
+## Loading library
+
+```{r library, message = FALSE, warning = FALSE, echo = TRUE}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(Seurat)
+library(harmony)
+library(lisi)
+library(kBET)
+
+```
+
+## Folder structure
+
+```{r project_directory, message = FALSE, warning = FALSE, echo = TRUE}
+
+if(!dir.exists(work_directory)) {
+  dir.create(work_directory, recursive = T)
+}
+
+for(sub_directory in c('figures', 'figures/batch')) {
+  dir.create(paste0(work_directory, '/', sub_directory))
+}
+
+```
+
+```{r loading_rds, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_object <- readRDS(file = project_object)
+
+# Cell number
+ncell <- dim(seurat_object)[2]
+
+# Knowledge-based parameters
+if(thr_npc == 'auto') {
+  
+  thr_npc <- ifelse(ncell < 50000, 25, 50)
+  
+}
+
+```
+
+```{r basic_input_validation, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Cell number
+ncell <- dim(seurat_object)[2]
+
+# Knowledge-based parameters
+if(thr_npc == 'auto') {
+  
+  thr_npc <- ifelse(ncell < 50000, 25, 50)
+  
+}
+
+meta_columns <- colnames(seurat_object@meta.data)
+input_target_variables <- intersect(input_target_variables, meta_columns)
+
+```
+
+## Running Harmony
+
+```{r run_harmnony, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_object <- RunHarmony(
+  seurat_object, 
+  input_target_variables,
+  dims = 1:thr_npc,
+  plot_convergence = TRUE)
+
+```
+
+## UMAP Calculation
+
+```{r run_umap, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_object <- RunUMAP(
+  object = seurat_object,
+  reduction = 'harmony', 
+  dims = 1:thr_npc,
+  seed.use = 2203
+)
+
+```
+
+::: {.alert .alert-error}
+Unfortunately, LISI and kBET analysis rely on cell annotation. This current pipeline version cannot provide metrics in a reliable way. <strong> Sorry for the disappointment </strong>. 
+:::
+
+### iLISI and cLISI Evaluation
+
+```{r lisi_evaluation, message = FALSE, warning = FALSE, echo = TRUE}
+
+if(FALSE) {
+
+  umap_embeddings <- Embeddings(
+  object = seurat_object, 
+  reduction = "umap")
+
+  #
+
+  harmony_lisi <- compute_lisi(
+    umap_embeddings,
+    seurat_object@meta.data, 
+    input_target_variables,
+    perplexity = 150
+  )
+
+  #
+
+  lisi_plot <- ggplot(harmony_lisi, aes(x = batch)) + 
+    geom_density(linewidth = 1.0) + 
+    labs(title = "iLISI score") +
+    xlim(1,5) +
+    theme_classic()
+
+  lisi_plot
+
+  #
+
+  if(auto_save) {
+    
+    ggsave(plot = lisi_plot, filename = paste0('figures/batch/LISI_plot_', timestamp, '.pdf'))
+    
+  }
+
+}
+
+```
+
+### kBET Evaluation
+
+```{r kbet_evaluation, message = FALSE, warning = FALSE, echo = TRUE}
+
+if(FALSE) {
+
+  kbet_df <- data.frame(
+  cell = colnames(seurat_object), 
+  sample = seurat_object$patient_id
+  )
+
+  #
+
+  set.seed(2203)
+  kbet_subset <- kbet_df %>% 
+    group_by(sample) %>%
+    sample_frac(size = 0.05)
+
+  #
+
+  harmony_embeddings <- Embeddings(object = seurat_object, reduction = "harmony")
+  harmony_embeddings_subset <- harmony_embeddings[kbet_subset$cell, ]
+
+  #
+
+  batch_vector <- kbet_subset$sample
+
+  #
+
+  batch_estimate <- kBET(
+    harmony_embeddings_subset, 
+    batch_vector, 
+    plot = FALSE)
+
+  #
+
+  kbet_plot_data <- data.frame(
+    class = rep(c('observed', 'expected'), 
+    each = length(batch_estimate$stats$kBET.observed)), 
+    data = c(batch_estimate$stats$kBET.observed, 
+            batch_estimate$stats$kBET.expected)
+  )
+
+  #
+
+  kbet_plot <- ggplot(kbet_plot_data, aes(class, data)) +
+    geom_boxplot() + 
+    labs(x='Test', y = 'Rejection rate', title = 'kBET Test results') +
+    theme_bw() +  
+    scale_y_continuous(limits=c(0,1))
+
+  kbet_plot
+
+  if(auto_save) {
+    
+    ggsave(plot = kbet_plot, filename = paste0('figures/batch/kBET_plot_', timestamp, '.pdf'))
+    
+  }
+
+}
+
+```
+
+## Saving Seurat object
+
+```{r object_dump, message = FALSE, warning = FALSE, echo = TRUE}
+
+if(auto_save) {
+  
+  saveRDS(seurat_object, file = paste0(project_name, '_batch_object_', timestamp, '.RDS'))
+  
+}
+
+```
+
+------------------------------------------------------------------------
+
+## Parameters log
+
+```{r params_log, message = FALSE, warning = FALSE, echo = TRUE}
+
+print(
+  list(
+    project_name = project_name,
+    project_object = project_object,
+    input_target_variables = input_target_variables,
+    thr_npc = thr_npc,
+    work_directory = work_directory,
+    auto_save = auto_save
+    )
+)
+
+```
+
+## Session info
+
+```{r session_info, message = FALSE, warning = FALSE, echo = TRUE}
+
+sessionInfo()
+
+```

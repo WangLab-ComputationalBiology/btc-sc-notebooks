@@ -1,0 +1,1240 @@
+---
+title: "04 - Single-cell Cell Annotation"
+author: "BTC Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+params:
+  project_name: 'Test'
+  project_object: 'ovarian_cluster_object_determined_sanger.RDS'
+  input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
+  workdir: 'C:/Users/affaustino/Documents/Projects/scPipeline/Test/'
+  timestamp: !r Sys.Date()
+  auto_save: !r TRUE
+---
+
+------------------------------------------------------------------------
+
+# Project Name: `r params$project_name`
+
+```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Project parameters 
+project_name <- params$project_name
+project_object <- params$project_object
+
+# Inputs and thresholds
+
+# Flags
+
+# Script-related parameters
+work_directory <- params$workdir
+timestamp <- params$timestamp
+auto_save <- params$auto_save
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(
+  root.dir = work_directory
+  )
+
+```
+
+## Loading library
+
+```{r library, message = FALSE, warning = FALSE, echo = TRUE}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+library(Seurat)
+library(harmony)
+library(lisi)
+library(future)
+library(clustermole)
+library(ROGUE)
+library(scCATCH)
+
+```
+
+## Folder structure
+
+```{r project_directory, message = FALSE, warning = FALSE, echo = TRUE}
+
+
+
+```
+
+```{r loading_rds, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_object <- readRDS(file = project_object)
+DimPlot(seurat_object, label = TRUE, label.size = 12)
+
+```
+
+```{r sort_umap}
+
+DimPlot(seurat_object, group.by = 'Sort', label = TRUE, label.size = 12)
+
+```
+
+```{r basic_input_validation, message = FALSE, warning = FALSE, echo = TRUE}
+
+p1 <- DimPlot(seurat_object, group.by = 'patient_id') +
+  theme(legend.position = 'bottom')
+
+membership <- seurat_object@meta.data %>%
+  select(seurat_clusters, patient_id) %>%
+  group_by(seurat_clusters, patient_id) %>%
+  summarise(
+    n_cell = n()
+  )
+
+membership <- membership %>%
+  group_by(seurat_clusters) %>%
+  mutate(
+    p_cell = round((n_cell / sum(n_cell))*100, 2)
+  )
+
+member_filling <- data.frame(
+  'seurat_clusters' = as.factor(c(3, 4, 5, 6, 11)),
+  'patient_id' = rep(c('SPECTRUM-OV-009', 'SPECTRUM-OV-022', 'SPECTRUM-OV-065'), 5),
+  'n_cell' = rep(0, 15),
+  'p_cell' = rep(0, 15)
+)
+
+#
+
+membership <- rbind(membership, member_filling)
+membership <- membership %>%
+  group_by(seurat_clusters, patient_id) %>%
+  summarise(
+    n_cell = sum(n_cell),
+    p_cell = sum(p_cell)
+  )
+
+#
+
+p2 <- ggplot(membership, aes(x = seurat_clusters, y = patient_id, fill = p_cell)) +
+  geom_tile() +
+  scale_fill_gradient(low="white", high="blue") +
+  labs(x = 'Seurat Clusters', y = NULL, fill = '% of Cells') +
+  scale_y_discrete(expand = c(0, 0)) +
+  scale_x_discrete(expand = c(0, 0)) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(color = 'black', size = 14)
+  )
+
+```
+
+```{r rogue_calculation}
+
+library(ROGUE)
+
+set.seed(2203)
+
+meta <- seurat_object@meta.data %>%
+  mutate(
+    Barcode = row.names(seurat_object@meta.data)
+  ) %>%
+  group_by(seurat_clusters) %>%
+  sample_frac(0.25)
+
+meta <- meta %>%
+  rename(
+    Patient = patient_id,
+    ct = seurat_clusters
+  )
+
+nrow(meta)
+
+expr <- seurat_object@assays$RNA@counts
+expr <- expr[, meta$Barcode] %>%
+  as.matrix()
+
+dim(expr)
+expr <- matr.filter(expr, min.cells = 10, min.genes = 10)
+
+dim(expr)
+
+ent.res <- SE_fun(expr)
+head(ent.res)
+
+SEplot(ent.res)
+
+rogue.value <- CalculateRogue(ent.res, platform = "UMI")
+rogue.value
+
+rogue.res <- rogue(expr, labels = meta$ct, samples = meta$Patient, platform = "UMI", span = 0.6)
+rogue.res
+
+rogue.boxplot(rogue.res)
+
+
+```
+
+## Differential expression analysis
+
+```{r finding_deg, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_object <- BuildClusterTree(seurat_object)
+PlotClusterTree(seurat_object, direction = 'rightwards', cex = 2, node.width = 1, node.pos = 1, node.depth = 2)
+
+plan("multicore", workers = 4)
+options(future.globals.maxSize = 2000*1024^2)
+
+all_markers <- FindAllMarkers(object = seurat_object, only.pos = FALSE, logfc.threshold = 0.25, return.thresh = 0.01, test.use = "t", random.seed = 123, verbose = TRUE)
+
+if(auto_save) {
+  
+  saveRDS(all_markers, file = paste0('data/', project_name, '_deg_analysis_', timestamp, '.RDS'))
+  
+}
+```
+
+```{r cell_module, message = FALSE, warning = FALSE, echo = TRUE}
+
+line_markers <- list(
+  "Immune Cells" = c("PTPRC"), 
+  "T-Cells" = c("CD3D","CD3E","CD4","CD8A","CD8B"), 
+  "NK Cells" = c("NCAM1","KLRG1","FCGR3A","NKG7","GNLY","CD160"), 
+  "B/Plasma Cells" = c("CD19","MS4A1","CD79A","CD79B","SDC1","MZB1","XBP1","JCHAIN"), 
+  "Myeloid Cells" = c("LYZ","S100A8","S100A9","CD68","CD14","C1QB","C1QC"), 
+  "pDC" = c("LILRA4","GZMB","JCHAIN","ITM2C","CLIC3"),
+  "Mast Cells" = c("TPSAB1","TPSB2"), 
+  "Proliferating Cells" = c("MKI67","BIRC5","CDK1"), 
+  "Endothelial Cells" = c("PECAM1","VWF","ENG","MCAM"), 
+  "Fibroblast" = c("FAP","PDPN","COL1A2","DCN","COL3A1","COL6A1"),
+  "Epithelial" = c("EPCAM","MUC1","ERBB2","KRT8","PGC","GKN2","SLC5A5","FABP1","KRT20"),
+  "Ovarian" = c("WFDC2", "CD24", "CLDN3", "KRT7", "KRT8", "KRT17", "KRT18", "KRT19", "EPCAM", "WT1", "CLDN4", "MSLN", "FOLR1", "MUC1")
+)
+
+for(cell_type in names(line_markers)) {
+  seurat_object <- AddModuleScore(
+  object = seurat_object,
+  features = line_markers[cell_type],
+  ctrl = 100,
+  name = cell_type
+  )
+}
+
+colnames(seurat_object@meta.data)[12:23] <- c('Immune Cells', 'T-Cells', 'NK Cells', 'B or Plasma Cells', 'Myeloid', 'pDC', 'Mast', 'Proliferating Cells', 'Endothelial Cells', 'Fibroblast', 'Epithelial', 'Ovarian cancer cells')
+
+FeaturePlot(object = seurat_object, features = colnames(seurat_object@meta.data)[12:23], min.cutoff = 'q1')
+
+```
+
+```{r major_bubble_plot, message = FALSE, warning = FALSE, echo = TRUE}
+
+all_markers <- readRDS(file = "./ovarian_deg_analysis_determined_sanger.RDS")
+all_markers <- all_markers %>%
+  group_by(cluster) %>%
+  arrange(desc(avg_log2FC)) %>%
+  mutate(
+    rank = row_number()
+  )
+
+all_markers_top20 <- all_markers %>%
+  group_by(cluster) %>%
+  slice_max(n = 20, order_by = avg_log2FC)
+
+all_markers_top20 <- all_markers_top20[!duplicated(all_markers_top20$gene),]
+
+all_markers_top20_list <- split(
+  all_markers_top20$gene, all_markers_top20$cluster)
+
+all_markers_top20_list$`5` <- all_markers_top20_list$`5`[-7] 
+
+sapply(all_markers_top20_list, length)
+
+#
+
+DotPlot(seurat_object, features = all_markers_top20_list) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0.9),
+    legend.position = 'top'
+  )
+
+```
+
+## TME Analysis
+
+```{r cluster_tme, message = FALSE, warning = FALSE, echo = TRUE}
+
+tme_list <- setdiff(unique(seurat_object$seurat_clusters), c(2, 4, 3, 5, 6, 11))
+seurat_tme_object <- subset(seurat_object, subset = seurat_clusters %in% tme_list)
+
+#
+
+seurat_tme_object <- NormalizeData(
+  object = seurat_tme_object, 
+  normalization.method = "LogNormalize",
+  scale.factor = 10000)
+
+seurat_tme_object <- FindVariableFeatures(
+  seurat_tme_object, selection.method = "vst", nfeatures = 2000)
+
+seurat_tme_object <- ScaleData(seurat_tme_object)
+
+#
+
+seurat_tme_object  <- RunHarmony(
+  seurat_tme_object, 
+  'batch',
+  dims = 1:25,
+  plot_convergence = TRUE)
+
+# Finding clusters
+seurat_tme_object <- FindNeighbors(
+  object = seurat_tme_object, 
+  reduction = 'harmony', 
+  dims = 1:25,
+  graph.name = paste0('snn_npc', 25)
+)
+
+seurat_tme_object <- FindClusters(
+  object = seurat_tme_object,
+  graph.name = paste0('snn_npc', 25),
+  resolution = 0.50
+)
+
+#
+
+seurat_tme_object <- RunUMAP(
+  object = seurat_tme_object,
+  reduction = 'harmony', 
+  dims = 1:25,
+  seed.use = 2203
+)
+
+if(auto_save) {
+  
+  saveRDS(seurat_tme_object, file = paste0(project_name, '_tme_cluster_object_', timestamp, '.RDS'))
+  
+}
+
+```
+
+```{r loading_tme, fig.height=8, fig.width=6}
+
+seurat_tme_object <- readRDS(file = "./Test_tme_cluster_object_2023-04-04.RDS")
+
+#
+
+DimPlot(
+  seurat_tme_object, 
+  reduction = "umap",
+  label = TRUE,
+  label.size = 12
+  ) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+DimPlot(seurat_tme_object, reduction = "umap", group.by = 'batch') +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+```
+
+```{r cell_module, message = FALSE, warning = FALSE, echo = TRUE}
+
+line_markers <- list(
+  "Astrocyte" = c("AGXT2L1", "GFAP", "ALDOC", "SLC1A3", "AGT", "ALDH1L1"),
+  "B cell" = c("CD19", "MS4A1", "BANK1", "BLK", "IRF8", "ABCB4", "ABCB9", "AFF4", "AIDA", "AIM2"),
+  "Endothelial cell" = c("VWF", "PECAM1", "CDH5", "VEGFA", "FLT1", "ECSCR", "ACYP1", "ADGRL2", "SELE", "ICAM1"),
+  "Epithelial cell" = c("CDH1", "MYLK", "ANKRD30A", "ABCA13", "ABCB10", "ADGB", "SFTPB", "SFTPC"),
+  "Erythrocyte" = c("ALAS2", "CA1", "HBB", "HBE1", "HBA1", "HBG1", "GYPA"),
+  "Fibroblast" = c("COL1A1", "COL3A1", "THY1", "NECTIN1", "FAP", "PTPN13", "C5AR2", "LRP1"),
+  "GMP" = c("CD38", "KIT", "ADK", "CD123", "ALDH4A1", "ANXA1", "AP3S1", "APLP2", "APPL1", "AREG", "ASPM", "CDKN3", "CLSPN", "DEPDC7", "MCM10", "MUCB2", "SDC4", "RMI2"),
+  "HSC" = c("CD34", "ITGA5", "PROM1", "CD105", "VCAM1", "CD164", "THY1", "KIT", "ACE", "CMAH", "ABCG2", "CD41", "ALDH1A1", "BMI1"),
+  "Macro/Mono/DC" = c("CD68", "CD14", "MRC1", "BHLHE40", "CD93", "CREM", "CSF1R", "CCL18", "ICAM4", "ACPP", "ACSL3", "ADGRE2", "ADGRE3", "CD209", "CD83", "CD1A"),
+  "Mast" = c("SLC18A2", "ADIRF", "ASIC4", "BACE2", "ENPP3", "CADPS", "CAPN3", "CDK15", "CMA1", "GCSAML", "MAML1", "MAOB", "CAVIN2"),
+  "Myeloid" = c("PTPRC", "CD14", "AIF1", "TYROBP", "CD163"),
+  "Neuron" = c("STMN2", "RBFOX3", "MAP2", "TUBB3", "CSF3", "DLG4", "ENO2"),
+  "Neutrophil" = c("ADGRG3", "CXCL8", "FCGR3B", "MNDA", "USP10", "CSF3R", "ANXA3", "AQP9", "BTNL8", "LGALS13", "G0S2", "NFE4", "IL5RA"),
+  "NK cell" = c("FCGR3A", "KLRB1", "KLRD1", "NKG7", "XCL1", "XCL2", "NCR3", "NCR1", "CD247", "GZMB", "KLRC1", "KLRK1"),
+  "Oligodendrocyte" = c("MOG", "OLIG1", "OLIG2", "PDGFRA", "PLP1", "MBP", "MAG", "SOX10"),
+  "Plasma cell" = c("MZB1", "BRSK1", "AC026202.3", "JSRP1", "LINC00582", "PARM1", "TAS1R3"),
+"Progenitor" = c("CD38", "CASR", "ALDH", "CAR", "KDR", "MME", "FLT3", "CD90", "CD123"),
+"T-cell" = c("CD3D", "CD3G", "CD3E")
+)
+
+
+for(cell_type in names(line_markers)) {
+  seurat_tme_object <- AddModuleScore(
+  object = seurat_tme_object,
+  features = line_markers[cell_type],
+  ctrl = 5,
+  name = cell_type
+  )
+}
+
+#colnames(seurat_tme_object@meta.data)[13:24] <- c('Immune Cells', 'T-Cells', 'NK Cells', 'B or Plasma Cells', 'Myeloid', 'pDC', 'Mast', 'Proliferating Cells', 'Endothelial Cells', 'Fibroblast', 'Epithelial', 'Ovarian cancer cells')
+
+FeaturePlot(object = seurat_tme_object, features = colnames(seurat_tme_object@meta.data)[13:30], min.cutoff = 'q1')
+
+```
+
+```{r load_multi_batch}
+
+seurat_multi_batch <- readRDS(file = "./Test_tme_cluster_multiple_batch.v3.RDS")
+plot_integrative <- readRDS(file = './plot_integrative.v2.RDS')
+
+#
+
+plot_integrative$integrated.mnn
+
+```
+
+```{r scCATCH}
+
+if(FALSE) {
+  
+  cellmatch_custom <- stack(line_markers) %>%
+  rename(
+    celltype = ind,
+    gene = values 
+  )
+
+  cellmatch_custom$species <- 'Human'
+  cellmatch_custom$tissue <- 'Immune'
+  cellmatch_custom$cancer <- 'Normal'
+  
+  #
+  
+  cellmatch_custom$subtype1 <- NA
+  cellmatch_custom$subtype2 <- NA
+  cellmatch_custom$subtype3 <- NA
+  
+  cellmatch_custom$resource <- 'Knowledge-based'
+  cellmatch_custom$pmid <- 'Unknown'
+  
+  #
+  
+  counts_matrix <- GetAssayData(seurat_tme_object, slot = "counts")
+  
+  #
+  
+  sc_catch_object <- createscCATCH(
+    data = counts_matrix, 
+    cluster = as.character(
+      seurat_tme_object$seurat_clusters
+    )
+  )
+  
+  #
+  
+  Sys.setenv('R_MAX_VSIZE'=32000000000)
+  
+}
+
+#
+
+cell_marker_custom <- read_tsv(file = "./cell_marker_custom.tsv")
+
+#
+
+counts_matrix <- GetAssayData(seurat_tme_object, slot = "counts")
+
+#
+
+sc_catch_object <- createscCATCH(
+  data = counts_matrix, 
+  cluster = as.character(
+    seurat_tme_object$seurat_clusters
+  )
+)
+
+sc_catch_object <- createscCATCH(
+  data = counts_matrix, 
+  cluster = as.character(
+    seurat_multi_batch@meta.data$cluster_integrated.mnn
+  )
+)
+
+#
+
+obj <- findmarkergene(
+  sc_catch_object, 
+  species = 'Human', 
+  marker = cell_marker_custom, 
+  tissue = 'Lineage Marker', 
+  cancer = 'Normal',
+  cell_min_pct = 0.15,
+  pvalue = 0.05,
+  use_method = 1
+  )
+
+#
+
+obj <- findcelltype(obj)
+View(obj@celltype)
+
+
+```
+
+```{r rogue_tme_calculation_1}
+
+library(ROGUE)
+
+set.seed(2203)
+
+meta <- seurat_tme_object@meta.data %>%
+  mutate(
+    Barcode = row.names(seurat_tme_object@meta.data)
+  ) %>%
+  group_by(seurat_clusters) %>%
+  sample_frac(0.25)
+
+meta <- meta %>%
+  rename(
+    Patient = patient_id,
+    ct = seurat_clusters
+  )
+
+nrow(meta)
+
+expr <- seurat_tme_object@assays$RNA@counts
+expr <- expr[, meta$Barcode] %>%
+  as.matrix()
+
+dim(expr)
+expr <- matr.filter(expr, min.cells = 10, min.genes = 10)
+
+dim(expr)
+
+ent.res <- SE_fun(expr)
+head(ent.res)
+
+SEplot(ent.res)
+
+rogue.value <- CalculateRogue(ent.res, platform = "UMI")
+rogue.value
+
+rogue.res <- rogue(expr, labels = meta$ct, samples = meta$Patient, platform = "UMI", span = 0.6)
+rogue.res
+
+rogue.boxplot(rogue.res)
+
+```
+
+```{r rogue_tme_calculation_2}
+
+library(ROGUE)
+
+set.seed(2203)
+
+meta <- seurat_multi_batch@meta.data %>%
+  mutate(
+    Barcode = row.names(seurat_multi_batch@meta.data)
+  ) %>%
+  group_by(cluster_integrated.rpca) %>%
+  sample_frac(0.25)
+
+meta <- meta %>%
+  rename(
+    Patient = patient_id,
+    ct = cluster_integrated.rpca
+  )
+
+nrow(meta)
+
+#
+
+expr <- GetAssay(seurat_multi_batch@assays$RNA, assay = 'RNA')
+expr <- expr[, meta$Barcode] %>%
+  as.matrix()
+
+#
+
+dim(expr)
+expr <- matr.filter(expr, min.cells = 10, min.genes = 10)
+
+dim(expr)
+
+ent.res <- SE_fun(expr)
+head(ent.res)
+
+SEplot(ent.res)
+
+rogue.rpca.value <- CalculateRogue(ent.res, platform = "UMI")
+rogue.rpca.value
+
+rogue.integrated.rpca <- rogue(expr, labels = meta$ct, samples = meta$Patient, platform = "UMI", span = 0.6)
+rogue.integrated.rpca
+
+rogue.boxplot(rogue.integrated.rpca)
+
+```
+
+```{r rogue_tme_calculation_3}
+
+library(ROGUE)
+
+set.seed(2203)
+
+meta <- seurat_multi_batch@meta.data %>%
+  mutate(
+    Barcode = row.names(seurat_multi_batch@meta.data)
+  ) %>%
+  group_by(cluster_integrated.mnn) %>%
+  sample_frac(0.25)
+
+meta <- meta %>%
+  rename(
+    Patient = patient_id,
+    ct = cluster_integrated.mnn
+  )
+
+nrow(meta)
+
+#
+
+expr <- GetAssay(seurat_tme_object, assay = 'RNA')
+expr <- expr[, meta$Barcode] %>%
+  as.matrix()
+
+#
+
+dim(expr)
+expr <- matr.filter(expr, min.cells = 10, min.genes = 10)
+
+#
+
+dim(expr)
+
+#
+
+ent.res <- SE_fun(expr)
+head(ent.res)
+
+SEplot(ent.res)
+
+rogue.mnn.value <- CalculateRogue(ent.res, platform = "UMI")
+rogue.mnn.value
+
+rogue.cluster_integrated.mnn <- rogue(expr, labels = meta$ct, samples = meta$Patient, platform = "UMI", span = 0.6)
+rogue.cluster_integrated.mnn
+
+rogue.boxplot(rogue.cluster_integrated.mnn)
+
+```
+
+```{r cell_annotation}
+
+colnames(seurat_tme_object@meta.data)[13:30]
+
+seurat_tme_object@meta.data <- seurat_tme_object@meta.data %>%
+  mutate(
+    cell_annotation = case_when(
+      seurat_clusters == 0 ~ "Myeloid cells",
+      seurat_clusters == 1 ~ "Myeloid cells",
+      seurat_clusters == 4 ~ "Myeloid cells",
+      seurat_clusters == 8 ~ "Myeloid cells",
+      seurat_clusters == 6 ~ "Myeloid cells",
+      seurat_clusters == 5 ~ "Fibroblast",
+      seurat_clusters == 11 ~ "Mast cells",
+      seurat_clusters == 2 ~ "T-cells",
+      seurat_clusters == 7 ~ "T-cells",
+      seurat_clusters == 12 ~ "Plasma cells",
+      seurat_clusters == 10 ~ "B cells",
+      seurat_clusters == 7 ~ "T-cells",
+      seurat_clusters == 3 ~ "NK cells",
+      seurat_clusters == 9 ~ "NK cells"
+    )
+  )
+
+#
+
+DimPlot(
+  seurat_tme_object, 
+  reduction = "umap",
+  group.by = "cell_annotation",
+  label = TRUE,
+  label.size = 4
+  ) +
+  labs(title = NULL) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+```
+
+```{r harmony_lisi}
+
+library(lisi)
+
+umap_embeddings <- Embeddings(
+  object = seurat_tme_object, 
+  reduction = "umap")
+
+#
+
+harmony_lisi <- compute_lisi(
+  umap_embeddings,
+  seurat_tme_object@meta.data, 
+  c('batch', 'cell_annotation'),
+  perplexity = 150
+)
+
+#
+
+harmony_lisi_pivot <- harmony_lisi %>%
+  select(batch, cell_annotation) %>%
+  tibble::rownames_to_column(var = 'barcode') %>%
+  tidyr::pivot_longer(!barcode, names_to = 'lisi_type', values_to = 'index')
+
+harmony_lisi_pivot <- harmony_lisi_pivot %>%
+  mutate(
+    lisi_type = case_when(
+      lisi_type == "batch" ~ "iLISI",
+      lisi_type == "cell_annotation" ~ "cLISI",
+    )
+  )
+
+#
+
+harmony_lisi_pivot <- merge(
+  harmony_lisi_pivot,
+  seurat_tme_object@meta.data %>%
+    tibble::rownames_to_column(var = 'barcode') %>%
+    select(barcode, cell_annotation),
+  by = 'barcode'
+)
+
+#
+
+plot_list <- list()
+
+for(cell_label in unique(harmony_lisi_pivot$cell_annotation)) {
+  
+  lisi_pivot_subset <- harmony_lisi_pivot %>%
+    filter(cell_annotation == cell_label)
+  
+  plot_list[[cell_label]] <- ggplot(lisi_pivot_subset, aes(x = index)) + 
+    geom_density(linewidth = 1.0) + 
+    labs(title = cell_label) +
+    xlim(1,2) +
+    facet_wrap(. ~ lisi_type, scales = 'free', ncol = 2, nrow = 1) +
+    theme_classic()
+  
+}
+
+
+wrap_plots(plot_list$`Mast cells`, plot_list$`T-cells`, plot_list$`B cells`, plot_list$`Myeloid cells`, nrow = 4)
+
+```
+
+```{r tme_sub_clustering}
+
+seurat_tcell_cluster <- subset(seurat_tme_object, subset = seurat_clusters %in% c(2, 7))
+
+#
+
+seurat_tcell_cluster <- FindNeighbors(
+  object = seurat_tcell_cluster, 
+  reduction = 'harmony', 
+  dims = 1:25,
+  graph.name = paste0('snn_npc', 50)
+)
+
+seurat_tcell_cluster <- FindClusters(
+  object = seurat_tcell_cluster,
+  graph.name = paste0('snn_npc', 50),
+  resolution = 0.25
+)
+
+#
+
+counts_matrix <- GetAssayData(seurat_tcell_cluster, slot = "counts")
+
+#
+
+sc_catch_object <- createscCATCH(
+  data = counts_matrix, 
+  cluster = as.character(
+    seurat_tcell_cluster$seurat_clusters
+  )
+)
+
+#
+
+obj <- findmarkergene(
+  sc_catch_object, 
+  species = 'Human', 
+  marker = cell_marker_custom, 
+  tissue = 'CD8T cells', 
+  cancer = 'Normal',
+  cell_min_pct = 0.15,
+  pvalue = 0.05,
+  use_method = 1
+  )
+
+#
+
+obj <- findcelltype(obj)
+obj@celltype
+
+#
+
+seurat_tcell_cluster@meta.data <- seurat_tcell_cluster@meta.data %>%
+  mutate(
+    cell_annotation = case_when(
+      seurat_clusters == 0 ~ 'Memory',
+      seurat_clusters == 1 ~ 'Naive',
+      seurat_clusters == 2 ~ 'Interferon Response',
+      seurat_clusters == 3 ~ 'Cytotoxic'
+    )
+  )
+
+#
+
+DimPlot(seurat_tcell_cluster, group.by = 'cell_annotation') +
+  labs(title = 'T-cell subtype') +
+  ylim(0, 15) +
+  theme(
+    legend.position = 'top'
+  )
+
+```
+
+```{r t_rogue_calculation}
+
+library(ROGUE)
+
+set.seed(2203)
+
+meta <- seurat_tcell_cluster@meta.data %>%
+  mutate(
+    Barcode = row.names(seurat_tcell_cluster@meta.data)
+  ) %>%
+  group_by(seurat_clusters) %>%
+  sample_frac(0.25)
+
+meta <- meta %>%
+  rename(
+    Patient = patient_id,
+    ct = seurat_clusters
+  )
+
+nrow(meta)
+
+expr <- seurat_tcell_cluster@assays$RNA@counts
+expr <- expr[, meta$Barcode] %>%
+  as.matrix()
+
+dim(expr)
+expr <- matr.filter(expr, min.cells = 10, min.genes = 10)
+
+dim(expr)
+
+ent.res <- SE_fun(expr)
+head(ent.res)
+
+SEplot(ent.res)
+
+rogue.value <- CalculateRogue(ent.res, platform = "UMI")
+rogue.value
+
+rogue.res <- rogue(expr, labels = meta$ct, samples = meta$Patient, platform = "UMI", span = 0.6)
+rogue.res
+
+rogue.boxplot(rogue.res)
+
+```
+
+```{r tcell_harmony_lisi}
+
+library(lisi)
+
+umap_embeddings <- Embeddings(
+  object = seurat_tcell_cluster, 
+  reduction = "umap")
+
+#
+
+harmony_lisi <- compute_lisi(
+  umap_embeddings,
+  seurat_tcell_cluster@meta.data, 
+  c('batch', 'cell_annotation'),
+  perplexity = 150
+)
+
+#
+
+harmony_lisi_pivot <- harmony_lisi %>%
+  select(batch, cell_annotation) %>%
+  tibble::rownames_to_column(var = 'barcode') %>%
+  tidyr::pivot_longer(!barcode, names_to = 'lisi_type', values_to = 'index')
+
+harmony_lisi_pivot <- harmony_lisi_pivot %>%
+  mutate(
+    lisi_type = case_when(
+      lisi_type == "batch" ~ "iLISI",
+      lisi_type == "cell_annotation" ~ "cLISI",
+    )
+  )
+
+#
+
+harmony_lisi_pivot <- merge(
+  harmony_lisi_pivot,
+  seurat_tcell_cluster@meta.data %>%
+    tibble::rownames_to_column(var = 'barcode') %>%
+    select(barcode, cell_annotation),
+  by = 'barcode'
+)
+
+#
+
+plot_list <- list()
+
+for(cell_label in unique(harmony_lisi_pivot$cell_annotation)) {
+  
+  lisi_pivot_subset <- harmony_lisi_pivot %>%
+    filter(cell_annotation == cell_label)
+  
+  plot_list[[cell_label]] <- ggplot(lisi_pivot_subset, aes(x = index)) + 
+    geom_density(linewidth = 1.0) + 
+    labs(title = cell_label) +
+    xlim(1,2) +
+    facet_wrap(. ~ lisi_type, scales = 'free', ncol = 2, nrow = 1) +
+    theme_classic()
+  
+}
+
+wrap_plots(plot_list$Memory, plot_list$Naive, plot_list$Cytotoxic, plot_list$`Interferon Response`, nrow = 4)
+
+```
+
+```{r mnn_cell_annotation}
+
+#
+
+cell_marker_custom <- read_tsv(file = "./cell_marker_custom.tsv")
+
+#
+
+counts_matrix <- GetAssayData(seurat_tme_object, slot = "counts")
+counts_matrix <- counts_matrix[,row.names(seurat_multi_batch@meta.data)]
+
+#
+
+sc_catch_object <- createscCATCH(
+  data = counts_matrix, 
+  cluster = as.character(
+    seurat_multi_batch@meta.data$cluster_integrated.mnn
+  )
+)
+
+sc_catch_object <- createscCATCH(
+  data = counts_matrix, 
+  cluster = as.character(
+    seurat_multi_batch@meta.data$cluster_integrated.mnn
+  )
+)
+
+unique(seurat_multi_batch@meta.data$cluster_integrated.mnn)
+
+#
+
+obj <- findmarkergene(
+  sc_catch_object, 
+  species = 'Human', 
+  marker = cell_marker_custom, 
+  tissue = 'Lineage Marker', 
+  cancer = 'Normal',
+  cell_min_pct = 0.15,
+  pvalue = 0.05,
+  use_method = 1
+  )
+
+#
+
+obj <- findcelltype(obj)
+View(obj@celltype)
+
+```
+```{r}
+
+DimPlot(seurat_multi_batch)
+
+```
+
+
+```{r mnn_lisi}
+
+library(lisi)
+
+umap_embeddings <- Embeddings(
+  object = seurat_multi_batch, 
+  reduction = "umap")
+
+#
+
+harmony_lisi <- compute_lisi(
+  umap_embeddings,
+  seurat_multi_batch@meta.data, 
+  c('batch', 'cell_annotation'),
+  perplexity = 150
+)
+
+#
+
+harmony_lisi_pivot <- harmony_lisi %>%
+  select(batch, cell_annotation) %>%
+  tibble::rownames_to_column(var = 'barcode') %>%
+  tidyr::pivot_longer(!barcode, names_to = 'lisi_type', values_to = 'index')
+
+harmony_lisi_pivot <- harmony_lisi_pivot %>%
+  mutate(
+    lisi_type = case_when(
+      lisi_type == "batch" ~ "iLISI",
+      lisi_type == "cell_annotation" ~ "cLISI",
+    )
+  )
+
+#
+
+harmony_lisi_pivot <- merge(
+  harmony_lisi_pivot,
+  seurat_tcell_cluster@meta.data %>%
+    tibble::rownames_to_column(var = 'barcode') %>%
+    select(barcode, cell_annotation),
+  by = 'barcode'
+)
+
+#
+
+plot_list <- list()
+
+for(cell_label in unique(harmony_lisi_pivot$cell_annotation)) {
+  
+  lisi_pivot_subset <- harmony_lisi_pivot %>%
+    filter(cell_annotation == cell_label)
+  
+  plot_list[[cell_label]] <- ggplot(lisi_pivot_subset, aes(x = index)) + 
+    geom_density(linewidth = 1.0) + 
+    labs(title = cell_label) +
+    xlim(1,2) +
+    facet_wrap(. ~ lisi_type, scales = 'free', ncol = 2, nrow = 1) +
+    theme_classic()
+  
+}
+
+
+```
+
+```{r deg_tme, message = FALSE, warning = FALSE, echo = TRUE}
+
+tme_deg <- readRDS(file = "./data/deg/TME/Test_deg_analysis.RDS")
+
+tme_deg <- tme_deg %>%
+  group_by(cluster) %>%
+  arrange(desc(avg_log2FC)) %>%
+  mutate(
+    rank = row_number()
+  )
+
+#
+
+tme_deg_line_markers <- tme_deg %>%
+  filter(
+    
+  )
+
+tme_deg_top20 <- tme_deg %>%
+  group_by(cluster) %>%
+  slice_max(n = 10, order_by = avg_log2FC)
+
+tme_deg_top20 <- tme_deg_top20[!duplicated(tme_deg_top20$gene),]
+tme_deg_top20 <- tme_deg_top20 %>%
+  filter(!gene %in% c("IRF8", "TUBB", "PLTP", "LYVE1", "HLA-DPB1", "TYMS", "CD79B", "AQP1", "GCSAML", "CAVIN2"))
+
+tme_deg_top20_list <- split(
+  tme_deg_top20$gene, tme_deg_top20$cluster)
+
+tme_deg_top20_list$`2` <- union(tme_deg_top20_list$`2`, line_markers$`T-cell`)
+tme_deg_top20_list$`3` <-  union(tme_deg_top20_list$`3` , line_markers$`NK cell`)
+tme_deg_top20_list$`5` <-  union(tme_deg_top20_list$`5` , line_markers$Fibroblast)
+tme_deg_top20_list$`0` <-  union(tme_deg_top20_list$`0` , line_markers$Myeloid)
+tme_deg_top20_list$`11` <- union(tme_deg_top20_list$`11`,  line_markers$Mast)
+tme_deg_top20_list$`12` <- union(tme_deg_top20_list$`12`,  line_markers$`Plasma cell`)
+tme_deg_top20_list$`10` <- union(tme_deg_top20_list$`10`,  line_markers$`B cell`)
+
+#
+
+sapply(tme_deg_top20_list, length)
+as.vector(unlist(tme_deg_top20_list))[table(as.vector(unlist(tme_deg_top20_list)))>1]
+
+#
+
+DotPlot(seurat_tme_object, 
+        features = tme_deg_top20_list,
+        group.by = 'cell_annotation',
+        cluster.idents = TRUE
+        ) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0.9),
+    legend.position = 'top'
+  )
+
+```
+
+## Malignant Analysis
+
+```{r recluster_tme, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_malig_object <- subset(seurat_object, subset = seurat_clusters %in% c(2, 4, 3, 5, 6, 11))
+
+#
+
+seurat_malig_object <- NormalizeData(
+  object = seurat_malig_object, 
+  normalization.method = 'LogNormalize',
+  scale.factor = 10000)
+
+seurat_malig_object <- FindVariableFeatures(
+  seurat_malig_object, selection.method = 'vst', nfeatures = 2000)
+
+seurat_malig_object <- ScaleData(seurat_malig_object)
+
+#
+
+reduction_variable <- 'pca'
+
+# Finding clusters
+seurat_malig_object <- FindNeighbors(
+  object = seurat_malig_object, 
+  reduction = reduction_variable, 
+  dims = 1:25,
+  graph.name = paste0('snn_npc', 25)
+)
+
+seurat_malig_object <- FindClusters(
+  object = seurat_malig_object,
+  graph.name = paste0('snn_npc', 25),
+  resolution = 0.25
+)
+
+seurat_malig_object <- RunUMAP(
+  object = seurat_malig_object,
+  reduction = reduction_variable, 
+  dims = 1:25,
+  seed.use = 2203
+)
+
+if(auto_save) {
+  
+  saveRDS(seurat_malig_object, file = paste0(project_name, '_malignant_cluster_object_', timestamp, '.RDS'))
+  
+}
+
+```
+
+```{r dim_plot_2}
+
+DimPlot(
+  seurat_malig_object, 
+  reduction = "umap",
+  label = TRUE,
+  label.size = 12
+  ) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+DimPlot(seurat_malig_object, reduction = "umap", group.by = 'batch') +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+```
+
+```{r deg_analysis_2}
+
+seurat_malig_object <- readRDS(file = "./Test_malignant_cluster_object_2023-04-04.RDS")
+
+malignant_deg <- readRDS(file = "./data/deg/malignant/Test_deg_analysis.RDS")
+
+malignant_deg <- malignant_deg %>%
+  group_by(cluster) %>%
+  arrange(desc(avg_log2FC)) %>%
+  mutate(
+    rank = row_number()
+  )
+
+malignant_deg_top20 <- malignant_deg %>%
+  group_by(cluster) %>%
+  slice_max(n = 15, order_by = avg_log2FC)
+
+malignant_deg_top20 <- malignant_deg_top20[!duplicated(malignant_deg_top20$gene),]
+
+malignant_deg_top20_list <- split(
+  malignant_deg_top20$gene, malignant_deg_top20$cluster)
+
+malignant_deg_top20_list$`5` <- malignant_deg_top20_list$`5`[-20] 
+
+sapply(malignant_deg_top20_list, length)
+
+#
+
+DotPlot(seurat_malig_object, features = malignant_deg_top20_list) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0.9),
+    legend.position = 'top'
+  )
+
+```
+
+## Saving Seurat object
+
+```{r object_dump, message = FALSE, warning = FALSE, echo = TRUE}
+
+if(FALSE) {
+  
+  saveRDS(seurat_object, file = paste0(project_name, '_cluster_object_', timestamp, '.RDS'))
+  
+}
+
+```
+
+------------------------------------------------------------------------
+
+## Parameters log
+
+```{r params_log, message = FALSE, warning = FALSE, echo = TRUE}
+
+print(
+  list(
+    project_name = project_name,
+    project_object = project_object,
+    input_group_plot = input_group_plot,
+    thr_npc = thr_npc,
+    work_directory = work_directory,
+    auto_save = auto_save
+    )
+)
+
+```
+
+## Session info
+
+```{r session_info, message = FALSE, warning = FALSE, echo = TRUE}
+
+sessionInfo()
+
+```

@@ -1,0 +1,589 @@
+---
+title: "04 - Single-cell Cell CNV"
+author: "BTC Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+params:
+  project_name: 'Test'
+  project_object: 'ovarian_cluster_object_determined_sanger.RDS'
+  input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
+  workdir: 'C:/Users/affaustino/Documents/Projects/scPipeline/Test/'
+  timestamp: !r Sys.Date()
+  auto_save: !r TRUE
+---
+
+------------------------------------------------------------------------
+
+# Project Name: `r params$project_name`
+
+```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Project parameters 
+project_name <- params$project_name
+project_object <- params$project_object
+
+# Inputs and thresholds
+
+# Flags
+
+# Script-related parameters
+work_directory <- params$workdir
+timestamp <- params$timestamp
+auto_save <- params$auto_save
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(
+  root.dir = work_directory
+  )
+
+```
+
+## Loading library
+
+```{r library, message = FALSE, warning = FALSE, echo = TRUE}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+library(Seurat)
+library(SCEVAN)
+library(copykat)
+library(infercnv)
+
+```
+
+## Folder structure
+
+```{r project_directory, message = FALSE, warning = FALSE, echo = TRUE}
+
+
+```
+
+```{r loading_rds, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_object <- readRDS(file = project_object)
+
+#
+
+load(url("https://www.dropbox.com/s/esqvnltucdqajg1/listCountMtx.RData?raw=1"))
+gene_valid <- row.names(listCountMtx$MGH104)
+gene_valid <- intersect(gene_valid, rownames(seurat_object@assays$RNA@counts))
+
+#
+
+if(FALSE) {
+
+  seurat_sample_counts <- list()
+  samplenames <- sub('^(\\S+)_seurat_object.*', '\\1', colnames(seurat_object@assays$RNA@counts)) %>%
+    unique()
+  
+  #
+  
+  for(sample_prefix in samplenames) {
+  
+  sample_cols <- grep(sample_prefix, colnames(seurat_object@assays$RNA@counts))
+  seurat_sample_counts[[sample_prefix]] <- seurat_object@assays$RNA@counts[gene_valid, sample_cols] %>%
+    as.matrix()
+  
+  }
+}
+
+
+```
+
+```{r cell_module, message = FALSE, warning = FALSE, echo = TRUE}
+
+line_markers <- list(
+  "Immune Cells" = c("PTPRC"), 
+  "T-Cells" = c("CD3D","CD3E","CD4","CD8A","CD8B"), 
+  "NK Cells" = c("NCAM1","KLRG1","FCGR3A","NKG7","GNLY","CD160"), 
+  "B/Plasma Cells" = c("CD19","MS4A1","CD79A","CD79B","SDC1","MZB1","XBP1","JCHAIN"), 
+  "Myeloid Cells" = c("LYZ","S100A8","S100A9","CD68","CD14","C1QB","C1QC"), 
+  "pDC" = c("LILRA4","GZMB","JCHAIN","ITM2C","CLIC3"),
+  "Mast Cells" = c("TPSAB1","TPSB2"), 
+  "Proliferating Cells" = c("MKI67","BIRC5","CDK1"), 
+  "Endothelial Cells" = c("PECAM1","VWF","ENG","MCAM"), 
+  "Fibroblast" = c("FAP","PDPN","COL1A2","DCN","COL3A1","COL6A1"),
+  "Epithelial" = c("EPCAM","MUC1","ERBB2","KRT8","PGC","GKN2","SLC5A5","FABP1","KRT20"),
+  "Ovarian" = c("WFDC2", "CD24", "CLDN3", "KRT7", "KRT8", "KRT17", "KRT18", "KRT19", "EPCAM", "WT1", "CLDN4", "MSLN", "FOLR1", "MUC1")
+)
+
+for(cell_type in names(line_markers)) {
+  seurat_object <- AddModuleScore(
+  object = seurat_object,
+  features = line_markers[cell_type],
+  ctrl = 5,
+  name = cell_type
+  )
+}
+
+colnames(seurat_object@meta.data)[12:23] <- c('Immune Cells', 'T-Cells', 'NK Cells', 'B or Plasma Cells', 'Myeloid', 'pDC', 'Mast', 'Proliferating Cells', 'Endothelial Cells', 'Fibroblast', 'Epithelial', 'Ovarian cancer cells')
+```
+
+```{r sample_per_cluster}
+
+cluster_annotation <- seurat_object@meta.data %>%
+  tibble::rownames_to_column(var = 'barcode') %>%
+  select(barcode, seurat_clusters) %>%
+  mutate(
+    seurat_clusters = paste0('cluster_', seurat_clusters),
+    sample_prefix = sub('^(\\S+)_seurat_object.*', '\\1', barcode)
+  )
+
+table(cluster_annotation$seurat_clusters)
+
+#
+
+set.seed(1)
+
+samplenames <- cluster_annotation %>%
+  group_by(seurat_clusters) %>%
+  slice_sample(prop = 0.20)
+
+table(samplenames$seurat_clusters)
+sum(table(samplenames$seurat_clusters))
+
+samplenames <- split(samplenames$barcode, samplenames$sample_prefix)
+
+#
+
+seurat_sample_counts <- list()
+for(sample_prefix in names(samplenames)) {
+  
+  sample_cols <- samplenames[[sample_prefix]]
+  seurat_sample_counts[[sample_prefix]] <- seurat_object@assays$RNA@counts[gene_valid, sample_cols] %>%
+    as.matrix()
+  
+}
+
+```
+
+```{r basic_input_validation, message = FALSE, warning = FALSE, echo = TRUE}
+
+sapply(seurat_sample_counts, ncol)
+length(seurat_sample_counts)
+
+```
+
+## SCEVAN - CNV analysis
+
+```{r SCEVAN, message = FALSE, warning = FALSE, echo = TRUE}
+
+results <- list()
+
+for(sample_prefix in names(seurat_sample_counts)) {
+
+  print(paste0(sample_prefix, "\n\n"))
+
+  tryCatch(
+    {
+        
+        results[[sample_prefix]] <- pipelineCNA(seurat_sample_counts[[sample_prefix]], organism = 'human', par_cores = 20, SUBCLONES = FALSE)
+
+    }, 
+    
+    error = function(e) 
+    {
+
+        results[[sample_prefix]] <- "Error"
+
+    }
+  ) 
+  
+}
+
+```
+
+## SCEVAN - UMAP
+
+```{r scevan_vis, message = FALSE, warning = FALSE, echo = TRUE}
+
+cnv <- readRDS(file = 'Test_cnv_callings_object_tiny_baekeland.RDS')
+
+#
+
+length(cnv)
+sapply(cnv, function(ov_sample) { table(ov_sample$class)})
+
+names(cnv) <- paste0(names(cnv), "#")
+cnv_all <- do.call('rbind', cnv)
+
+#
+
+row.names(cnv_all) <- sub('.*#\\.', '', row.names(cnv_all))
+
+#
+
+cnv_all_annotated <- cnv_all %>%
+  filter(class != 'filtered')
+
+#
+
+seurat_object <- AddMetaData(seurat_object, metadata = cnv_all_annotated)
+
+#
+
+seurat_object@meta.data <- seurat_object@meta.data %>%
+  mutate(
+    class_final = case_when(
+      class == "tumor" ~ "tumor",
+      `Immune Cells` >= 1.2 ~ "normal",
+      `T-Cells` >= 1.2 ~ "normal", 
+      `NK Cells` >= 1.2 ~ "normal", 
+      Myeloid >= 1.2 ~ "normal"
+    )
+  )
+
+#
+
+table(seurat_object@meta.data$class)
+table(seurat_object@meta.data$class_final)
+
+#
+
+DimPlot(seurat_object, group.by = 'class', pt.size = 0.8) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+DimPlot(seurat_object, group.by = 'class_final', pt.size = 0.8) +
+  labs(colour = 'CNV annotation', title = NULL) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+```
+
+```{r}
+
+infer_sample_subset <- unlist(samplenames) %>%
+  as.vector()
+
+counts_matrix <- GetAssayData(seurat_object, slot="counts")
+counts_matrix <- counts_matrix[, infer_sample_subset]
+
+```
+
+## InferCNV - CNV analysis
+
+```{r infer_cnv}
+
+#
+
+if(!file.exists('cluster_annotation.tsv')) {
+  
+  cluster_annotation <- seurat_object@meta.data[infer_sample_subset, ]
+  
+  dim(counts_matrix)[2] == nrow(cluster_annotation)
+  
+  cluster_annotation <- cluster_annotation %>%
+    tibble::rownames_to_column(var = 'barcode') %>%
+    select(barcode, seurat_clusters) %>%
+    mutate(
+      seurat_clusters = paste0('cluster_', seurat_clusters)
+    )
+  
+  write_tsv(cluster_annotation, file = './cluster_annotation.tsv', col_names = FALSE)
+
+}
+
+infercnv_obj <- CreateInfercnvObject(raw_counts_matrix = counts_matrix,
+                                    annotations_file = './cluster_annotation.tsv',
+                                    delim = "\t",
+                                    gene_order_file=system.file("extdata", "gencode_downsampled.EXAMPLE_ONLY_DONT_REUSE.txt", package = "infercnv"),
+                                    ref_group_names=paste0('cluster_', seq(0, 12))) 
+
+infercnv_obj <- infercnv::run(infercnv_obj,
+                             cutoff=0.1, # cutoff=1 works well for Smart-seq2, and cutoff=0.1 works well for 10x Genomics
+                             out_dir=tempfile(), 
+                             cluster_by_groups=TRUE,
+                             analysis_mode = 'samples',
+                             denoise=TRUE,
+                             HMM=TRUE,
+                             num_threads = 12)
+
+```
+
+```{r}
+
+infercnv_obj <- readRDS(file = "./Test11/infercnv/run.final.infercnv_obj")
+
+seurat_object[['barcode']] <- rownames(seurat_object@meta.data)
+seurat_infercnv_object <- subset(seurat_object, barcode %in% colnames(infercnv_obj@expr.data))
+
+seurat_infercnv_object <- infercnv::add_to_seurat(
+  infercnv_output_path = './Test/infercnv',
+  seurat_obj = seurat_infercnv_object,
+  top_n = 10
+  )
+
+#
+
+View(seurat_infercnv_object@meta.data)
+summary(seurat_infercnv_object@meta.data)
+
+has_cnv_columns <- grep('has_cnv', colnames(seurat_infercnv_object@meta.data))
+seurat_infercnv_object$has_cnv <- sapply(1:nrow(seurat_infercnv_object@meta.data), function(nr) {
+    sum(seurat_infercnv_object@meta.data[nr, has_cnv_columns])
+})
+
+#
+
+DimPlot(seurat_infercnv_object, group.by = "seurat_clusters", label = TRUE)
+
+#
+
+DimPlot(seurat_infercnv_object, group.by = "top_loss_1")
+DimPlot(seurat_infercnv_object, group.by = "top_dupli_1")
+
+#
+
+FeaturePlot(seurat_infercnv_object, features = 'has_cnv')
+FeaturePlot(seurat_infercnv_object, features = 'proportion_cnv_chr5')
+
+```
+
+```{r}
+
+View(seurat_infercnv_object@meta.data)
+plot_cnv(infercnv_obj, output_filename = 'test_infercnv_2')
+
+```
+
+## CopyKat - CNV analysis
+
+```{r copykat}
+
+if(FALSE) {
+  
+  copykat.test <- copykat(
+  rawmat=counts_matrix,
+  id.type="S",
+  ngene.chr=5,
+  win.size=25,
+  KS.cut=0.1,
+  sam.name="test",
+  distance="euclidean",
+  norm.cell.names="", 
+  output.seg="FALSE", 
+  plot.genes="TRUE", 
+  genome="hg20",
+  n.cores=1
+  )
+  
+}
+
+```
+
+```{r}
+
+copykat.test <- readRDS(file = "./copykat/test_copykat_object.RDS")
+
+#
+
+pred.test <- data.frame(copykat.test$prediction)
+seurat_infercnv_object[['copykat']] <- pred.test$copykat.pred
+  
+#
+
+if(FALSE) {
+  
+  seurat_infercnv_object@meta.data <- merge(
+    seurat_infercnv_object@meta.data,
+    pred.test,
+    by.x = 'barcode',
+    by.y = 'cell.names',
+    all.x = TRUE
+  )
+  
+}
+
+#
+
+View(seurat_infercnv_object@meta.data)
+table(seurat_infercnv_object@meta.data$copykat.pred)
+
+```
+
+```{r}
+
+DimPlot(seurat_infercnv_object, group.by = 'copykat', pt.size = 0.8)
+
+```
+
+```{r}
+
+seurat_infercnv_object <- Seurat::AddModuleScore(
+  object = seurat_infercnv_object,
+  features = 'PTPRC',
+  ctrl = 2,
+  name = 'CD45'
+)
+
+```
+
+```{r}
+
+proportion_scaled_cnv <- grep('proportion_scaled_cnv_', colnames(seurat_infercnv_object@meta.data), value = T)
+
+seurat_infercnv_meta <- seurat_infercnv_object@meta.data %>%
+    rowwise() %>% 
+    mutate(
+      proportion_scaled_cnv = sum(c_across(starts_with("proportion_scaled_cnv")), na.rm = T))
+
+#
+
+seurat_infercnv_meta <- seurat_infercnv_meta %>% 
+  dplyr::select(barcode, seurat_clusters, `Ovarian cancer cells`, class_final, Sort, proportion_scaled_cnv, has_cnv, CD451) %>%
+  mutate(
+    sort_dependent = ifelse(
+      Sort == 'CD45-', 1, 0
+    ),
+    class_final = ifelse(
+      class_final == 'tumor', 2, 1
+    )
+  )
+
+seurat_infercnv_meta[is.na(seurat_infercnv_meta$class_final), 'class_final'] <- 0
+
+#
+
+train_test <- sample(c(TRUE, FALSE), nrow(seurat_infercnv_meta), replace=TRUE, prob=c(0.7,0.3))
+
+#
+
+test <-  seurat_infercnv_meta[train_test,]            
+train <- seurat_infercnv_meta[!train_test,]            
+
+#
+
+model <- glm(
+  formula = sort_dependent ~ 
+    class_final + `Ovarian cancer cells` + proportion_scaled_cnv + has_cnv,
+  data = train, family = binomial)
+
+#
+
+probabilities <- model %>% 
+  predict(seurat_infercnv_meta, type = "response")
+
+#
+
+seurat_infercnv_meta$probabilities <- as.vector(probabilities)
+seurat_infercnv_meta <- seurat_infercnv_meta %>%
+  mutate(
+    sort_status = ifelse(
+      probabilities < 0.5, 'CD45-', 'CD45+'
+    ),
+    prob_log = log2(probabilities)
+  )
+
+#
+
+View(seurat_infercnv_meta)
+
+#
+
+seurat_infercnv_object[['consensus_prob']] <- seurat_infercnv_meta$probabilities
+seurat_infercnv_object[['consensus_lab']] <- ifelse(
+  seurat_infercnv_object$consensus_prob > 0.5, 'Tumor', 'Normal'
+)
+
+#
+
+scale_min_max <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+seurat_infercnv_object[['proportion_scaled_cnv']] <- log1p(seurat_infercnv_meta$proportion_scaled_cnv)
+
+#
+
+DimPlot(seurat_infercnv_object, group.by = 'consensus_lab') +
+  scale_colour_manual(values = c("#00BFC4", "#F8766D"))
+
+#
+
+FeaturePlot(seurat_infercnv_object, features = 'consensus_prob')
+FeaturePlot(seurat_infercnv_object, features = 'proportion_scaled_cnv') +
+  labs(title = "CNV - HMM score")
+
+FeaturePlot(seurat_infercnv_object, features = 'CD451') +
+  labs(title = "CD45 - mRNA Expression")
+
+#
+
+ggplot(seurat_infercnv_meta, aes(x = probabilities, y = CD451)) +
+  geom_point()
+
+ggplot(seurat_infercnv_meta, aes(x = `Ovarian cancer cells`, y = CD451)) +
+  geom_point()
+
+ggplot(seurat_infercnv_meta, aes(x = scale_min_max(proportion_scaled_cnv), y = CD451)) +
+  geom_point()
+
+#
+
+
+ggplot(seurat_infercnv_meta, aes(x = Sort, y = probabilities)) +
+  geom_boxplot()
+
+ggplot(seurat_infercnv_meta, aes(x = Sort, y = proportion_scaled_cnv)) +
+  geom_boxplot()
+
+ggplot(seurat_infercnv_meta, aes(x = Sort, y = `Ovarian cancer cells`)) +
+  geom_boxplot()
+
+ggplot(seurat_infercnv_meta, aes(x = Sort, y = class_final )) +
+  geom_boxplot()
+
+
+```
+
+## Saving Seurat object
+
+```{r object_dump, message = FALSE, warning = FALSE, echo = TRUE}
+
+if(auto_save) {
+  
+  saveRDS(seurat_object, file = paste0(project_name, '_cluster_object_', timestamp, '.RDS'))
+  
+}
+
+```
+
+------------------------------------------------------------------------
+
+## Parameters log
+
+```{r params_log, message = FALSE, warning = FALSE, echo = TRUE}
+
+print(
+  list(
+    project_name = project_name,
+    project_object = project_object,
+    input_group_plot = input_group_plot,
+    thr_npc = thr_npc,
+    work_directory = work_directory,
+    auto_save = auto_save
+    )
+)
+
+```
+
+## Session info
+
+```{r session_info, message = FALSE, warning = FALSE, echo = TRUE}
+
+sessionInfo()
+
+```

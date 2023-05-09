@@ -1,0 +1,75 @@
+---
+title: "02 - Rendering quality report"
+author: "BTC Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    code_folding: show
+    self_contained: true
+params:
+  project_name: 'Test'
+  input_metrics_report: 'path/to/metrics_report'
+  workdir: 'path/to/work_directory'
+  timestamp: !r Sys.Date()
+  auto_save: !r TRUE
+---
+
+
+# Project Name: `r params$project_name`
+
+```{r setup, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Project parameters 
+project_name <- params$project_name
+input_metrics_report <- strsplit(params$input_metrics_report, split = ';')[[1]]
+
+# Script-related parameters
+work_directory <- params$workdir
+timestamp <- params$timestamp
+auto_save <- params$auto_save
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(
+  root.dir = work_directory,
+  error = TRUE
+  )
+
+```
+
+## Loading library
+
+```{r library, message = FALSE, warning = FALSE, echo = TRUE}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(DT)
+
+```
+
+## Report interactive table
+
+```{r merging_report, message = FALSE, warning = FALSE, echo = TRUE}
+
+metric_report_db <- data.frame()
+
+for (sample_metric in input_metrics_report) {
+  metric_report_tmp <- read_csv(file = sample_metric)
+  metric_report_db <- rbind(
+        metric_report_db,
+        metric_report_tmp
+    )
+
+}
+
+datatable(metric_report_db, 
+    class = 'cell-border stripe',
+    rownames = FALSE,
+    filter = 'top',
+    width = '100%', 
+    options = list(scrollX = TRUE))
+
+```
