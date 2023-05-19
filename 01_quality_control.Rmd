@@ -19,8 +19,8 @@ params:
   thr_mean_reads_per_cells: 25000
   thr_median_genes_per_cell: 900
   thr_median_umi_per_cell: 1000
-  thr_nFeature_RNA_min: 300
-  thr_nFeature_RNA_max: 7500
+  thr_n_feature_rna_min: 300
+  thr_n_feature_rna_max: 7500
   thr_percent_mito: 25
   thr_n_observed_cells: 300
   workdir: 'path/to/work_directory'
@@ -47,8 +47,8 @@ thr_estimate_n_cells <- params$thr_estimate_n_cells
 thr_mean_reads_per_cells <- params$thr_mean_reads_per_cells
 thr_median_genes_per_cell <- params$thr_median_genes_per_cell
 thr_median_umi_per_cell <- params$thr_median_umi_per_cell
-thr_nFeature_RNA_min <- params$thr_nFeature_RNA_min
-thr_nFeature_RNA_max <- params$thr_nFeature_RNA_max
+thr_n_feature_rna_min <- params$thr_n_feature_rna_min
+thr_n_feature_rna_max <- params$thr_n_feature_rna_max
 thr_percent_mito <- params$thr_percent_mito
 thr_n_observed_cells <- params$thr_n_observed_cells
 
@@ -241,7 +241,7 @@ n_total_cells <- dim(seurat_object)[2]
 
 seurat_object <- subset(
   x = seurat_object,
-  subset = (nFeature_RNA >= thr_nFeature_RNA_min & nFeature_RNA < thr_nFeature_RNA_max)
+  subset = (nFeature_RNA >= thr_n_feature_rna_min & nFeature_RNA < thr_n_feature_rna_max)
   )
 
 #
@@ -340,8 +340,8 @@ print(
       thr_mean_reads_per_cells = thr_mean_reads_per_cells,
       thr_median_genes_per_cell = thr_median_genes_per_cell,
       thr_median_umi_per_cell = thr_median_umi_per_cell,
-      thr_nFeature_RNA_min = thr_nFeature_RNA_min,
-      thr_nFeature_RNA_max = thr_nFeature_RNA_max,
+      thr_n_feature_rna_min = thr_n_feature_rna_min,
+      thr_n_feature_rna_max = thr_n_feature_rna_max,
       thr_percent_mito = thr_percent_mito,
       thr_n_observed_cells = thr_n_observed_cells,
       work_directory = work_directory,
