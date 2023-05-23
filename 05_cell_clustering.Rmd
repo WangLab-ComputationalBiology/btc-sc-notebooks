@@ -1,6 +1,6 @@
 ---
 title: "04 - Single-cell Cell Clustering"
-author: "BTC Pipeline"
+author: "BTC scRNA Pipeline"
 date: "`r Sys.time()`"
 output:
   html_document:
