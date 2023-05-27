@@ -40,7 +40,11 @@ work_directory <- params$workdir
 timestamp <- params$timestamp
 auto_save <- params$auto_save
 
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  echo = TRUE,
+  error = TRUE
+  )
+
 knitr::opts_knit$set(
   root.dir = work_directory
   )
@@ -56,8 +60,8 @@ library(dplyr)
 library(ggplot2)
 library(Seurat)
 library(harmony)
-library(lisi)
 library(kBET)
+library(lisi)
 
 ```
 
@@ -134,7 +138,7 @@ seurat_object <- RunUMAP(
 ```
 
 ::: {.alert .alert-error}
-Unfortunately, LISI and kBET analysis rely on cell annotation. This current pipeline version cannot provide metrics in a reliable way. <strong> Sorry for the disappointment </strong>. 
+Unfortunately, LISI and kBET analysis rely on cell annotation. This current pipeline version cannot provide metrics in a reliable way. <strong> Sorry for the disappointment </strong>.
 :::
 
 ### iLISI and cLISI Evaluation
