@@ -3,6 +3,14 @@
 .RData
 .Ruserdata
 *.RDS
+
+*.html
+
 dev/
+data/
+figures/
 infercnv/
 output/
+
+*_cache
+*_files
