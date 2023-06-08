@@ -1,24 +1,29 @@
 ---
-title: "04 - Single-cell Cell Clustering"
+title: "Module - Clustering"
 author: "BTC scRNA Pipeline"
 date: "`r Sys.time()`"
 output:
   html_document:
     toc: true
     toc_float: true
-    toc_depth: 3
+    toc_depth: 4
     code_folding: show
     self_contained: true
+    theme: united
+    df_print: paged
 params:
   project_name: 'Test'
-  project_object: 'path/to/project_object'
+  project_object: './dev/data/ovarian_tme_cluster_multiple_batch.RDS'
   input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
-  input_group_plot: 'batch'
+  input_group_plot: 'source_name'
+  input_batch_method: 'auto'
   n_threads: 20
+  n_memory: 24
   thr_quantile: 'q01'
   thr_npc: 'auto'
   thr_resolution: 0.25
-  workdir: 'path/to/work_directory'
+  thr_proportion: 0.25
+  workdir: !r here::here()
   timestamp: !r Sys.Date()
   auto_save: !r TRUE
 ---
@@ -27,33 +32,45 @@ params:
 
 # Project Name: `r params$project_name`
 
-```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = TRUE}
+```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = FALSE}
 
 # Project parameters 
 project_name <- params$project_name
 project_object <- params$project_object
 
 # Inputs and thresholds
+input_batch_method <- params$input_batch_method
 input_features_plot <- strsplit(
   params$input_features_plot, split = ';')[[1]]
-
 input_group_plot <- strsplit(
   params$input_group_plot, split = ';')[[1]]
 
 thr_npc <- params$thr_npc
 thr_resolution <- params$thr_resolution
+thr_proportion <- params$thr_proportion
 thr_quantile <- params$thr_quantile
 
-# Flags
-run_deg <- params$run_deg
+# Dataflow/Computational parameters
 n_threads <- params$n_threads
+n_memory <- params$n_memory
 
-# Script-related parameters
+# Output parameters
 work_directory <- params$workdir
 timestamp <- params$timestamp
 auto_save <- params$auto_save
 
-knitr::opts_chunk$set(echo = TRUE)
+# Rmarkdown options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  error = TRUE,
+  message = FALSE, 
+  warning = FALSE,
+  fig.height = 8, 
+  fig.width = 12,
+  dpi = 300,
+  fig.align = 'center'
+  )
+
 knitr::opts_knit$set(
   root.dir = work_directory
   )
@@ -62,35 +79,36 @@ knitr::opts_knit$set(
 
 ## Loading library
 
-```{r library, message = FALSE, warning = FALSE, echo = TRUE}
+```{r library}
 
 library(readr)
 library(dplyr)
 library(ggplot2)
 library(patchwork)
 library(Seurat)
-library(future)
-library(DT)
 library(ROGUE)
 
 ```
 
 ## Folder structure
 
-```{r project_directory, message = FALSE, warning = FALSE, echo = TRUE}
+```{r project_directory}
 
 if(!dir.exists(work_directory)) {
   dir.create(work_directory, recursive = T)
 }
 
-for(sub_directory in c('data', 'data/deg', 'figures', 'figures/clustered')) {
+for(sub_directory in c('data', 'figures', 'figures/clustered')) {
   dir.create(paste0(work_directory, '/', sub_directory))
 }
 
 ```
 
-```{r loading_rds, message = FALSE, warning = FALSE, echo = TRUE}
+## Loading Seurat object
 
+```{r loading_rds}
+
+# Reading seurat object
 seurat_object <- readRDS(file = project_object)
 
 # Cell number
@@ -98,100 +116,88 @@ ncell <- dim(seurat_object)[2]
 
 # Knowledge-based parameters
 if(thr_npc == 'auto') {
-  
   thr_npc <- ifelse(ncell < 50000, 25, 50)
+}
+
+# Setting random seed
+random_seed <- 2203
+set.seed(random_seed)
+
+```
+
+```{r basic_input_validation}
+
+# Extracting gene names and metadata columns
+metadata_columns <- colnames(seurat_object@meta.data)
+features_names <- row.names(seurat_object)
+
+# Checking input variables
+input_features_plot <- intersect(input_features_plot, features_names)
+input_group_plot <- intersect(input_group_plot, metadata_columns)
+
+# Setting reduction variable
+integration_method <- function(
+    method = c('pca', 'mnn', 'rpca', 'cca', 'harmony', 'auto')) {
+
+  # Default reduction
+  reduction_variable <- 'pca'
+  
+  # Programmatic choices
+  if(method == 'auto') {
+    if(file.exists('./data/batch_method.selected.txt')) {
+      reduction_variable <- read_lines(file = "./data/batch_method.selected.txt")
+    } 
+  }
+  
+  if(method %in% names(seurat_object@reductions)) {
+    reduction_variable <- input_batch_method
+  } 
+  
+  return(reduction_variable)
   
 }
 
-```
-
-```{r basic_input_validation, message = FALSE, warning = FALSE, echo = TRUE}
-
-meta_columns <- colnames(seurat_object@meta.data)
-features_names <- rownames(seurat_object@assays$RNA@counts)
-
-#
-
-input_features_plot <- intersect(input_features_plot, features_names)
-input_group_plot <- intersect(input_group_plot, meta_columns)
+reduction_variable <- integration_method(
+  method = input_batch_method
+  )
 
 ```
+
+::: {.alert .alert-warning}
+The clustering step will be performed over the **`r reduction_variable`** reduction.
+:::
 
 ## Finding neighbors and clusters
 
-```{r finding_neighbors, message = FALSE, warning = FALSE, echo = TRUE}
+```{r finding_neighbors}
 
-if('harmony' %in% names(seurat_object@reductions)) {
-  
-  reduction_variable <- 'harmony'
+# Finding clusters
+seurat_object <- FindNeighbors(
+  object = seurat_object, 
+  reduction = reduction_variable, 
+  dims = 1:thr_npc,
+  graph.name = paste0('snn_npc', thr_npc)
+)
 
-  # Finding clusters
-  seurat_object <- FindNeighbors(
-    object = seurat_object, 
-    reduction = reduction_variable, 
-    dims = 1:thr_npc,
-    graph.name = paste0('snn_npc', thr_npc)
-  )
+seurat_object <- FindClusters(
+  object = seurat_object,
+  graph.name = paste0('snn_npc', thr_npc),
+  resolution = thr_resolution
+)
 
-  seurat_object <- FindClusters(
-    object = seurat_object,
-    graph.name = paste0('snn_npc', thr_npc),
-    resolution = thr_resolution
-  )
-  
-} else {
-  
-  reduction_variable <- 'pca'
-  
-  # Finding clusters
-  seurat_object <- FindNeighbors(
-    object = seurat_object, 
-    reduction = reduction_variable, 
-    dims = 1:thr_npc,
-    graph.name = paste0('snn_npc', thr_npc)
-  )
-
-  seurat_object <- FindClusters(
-    object = seurat_object,
-    graph.name = paste0('snn_npc', thr_npc),
-    resolution = thr_resolution
-  )
-
-    seurat_object <- RunUMAP(
-    object = seurat_object,
-    reduction = reduction_variable, 
-    dims = 1:thr_npc,
-    seed.use = 2203
-  )
-
-}
+# Running UMAP reduction
+seurat_object <- RunUMAP(
+  object = seurat_object,
+  reduction = reduction_variable, 
+  dims = 1:thr_npc,
+  seed.use = random_seed
+)
 
 ```
 
-```{r filtering_clusters, message = FALSE, warning = FALSE, echo = TRUE}
+```{r umap_main_plot}
 
-# Removing spurious clusters. Findclusters should have already incorporated singletons.
-seurat_cluster_density <- table(seurat_object@meta.data$seurat_clusters)
-seurat_cluster_density <- data.frame(seurat_cluster_density)
-colnames(seurat_cluster_density) <- c('seurat_clusters', 'n_members')
-
-# 
-seurat_cluster_density <- seurat_cluster_density %>%
-  filter(n_members >= 5)
-
-seurat_meaningful_cluster <- 
-  seurat_cluster_density$seurat_clusters
-
-#
-#seurat_object <- subset(
-#  seurat_object,
-#  subset = seurat_clusters %in% seurat_meaningful_cluster
-#)
-
-```
-
-```{r umap_main_plot, message = FALSE, warning = FALSE, echo = TRUE, fig.width = 10, fig.height = 10, dpi = 300}
-
+# Plotting UMAP based on Seurat clusters
 umap_main <- DimPlot(
   seurat_object, 
   reduction = "umap",
@@ -211,7 +217,129 @@ umap_main
 
 ```
 
-```{r umap_secondary, message = FALSE, warning = FALSE, echo = TRUE, fig.width = 10, fig.height = 8, dpi = 300}
+```{r clusters_density}
+
+seurat_cluster_density <- seurat_object@meta.data %>%
+  group_by(seurat_clusters)
+
+seurat_cluster_density <- table(seurat_object@meta.data$seurat_clusters)
+seurat_cluster_density <- data.frame(seurat_cluster_density)
+colnames(seurat_cluster_density) <- c('seurat_clusters', 'n_members')
+
+# 
+
+ggplot(seurat_cluster_density, aes(x = seurat_clusters, y = n_members)) +
+  geom_col() +
+  labs(x = "Seurat Clusters", y = "# of Cells") +
+  theme_classic() +
+  theme(
+    axis.text = element_text(size = 18)
+  )
+
+```
+
+```{r printing_cluster_table, message = FALSE, warning = FALSE, echo = FALSE}
+
+seurat_cluster_density %>%
+  tidyr::pivot_wider(names_from = seurat_clusters, values_from = n_members)
+
+```
+> **CAPTION:** Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+## Clustering performance {.tabset}
+
+```{r clustering_performance}
+
+# Sampling cells per cluster
+sample_clusters_members <- seurat_object@meta.data %>%
+  mutate(barcode = row.names(seurat_object@meta.data)) %>%
+  group_by(seurat_clusters) %>%
+  slice_sample(prop = thr_proportion)
+
+sample_clusters_members <- sample_clusters_members %>%
+  rename(
+    Patient = patient_id,
+    clusters = seurat_clusters
+  )
+
+# Extracting expression counts
+expression_counts <- GetAssay(object = seurat_object, assay = "RNA")
+expression_counts <- expression_counts$counts
+
+# Sampling counts
+expression_counts <- expression_counts[, sample_clusters_members$barcode] %>%
+  as.matrix()
+expression_counts <- matr.filter(expression_counts, min.cells = 10, min.genes = 10)
+
+# Computing entropy background
+entropy_result <- SE_fun(expression_counts)
+
+# Avg. ROGUE score across clusters
+rogue_value <- CalculateRogue(entropy_result, platform = "UMI")
+
+# Calculating ROGUE score
+rogue_result <- rogue(expression_counts, labels = sample_clusters_members$clusters, samples = sample_clusters_members$Patient, platform = "UMI", span = 0.6)
+
+rogue_result
+
+```
+
+::: {.alert .alert-warning}
+The ROGUE score for the clustering composition (resolution = **`r thr_resolution`**) is equal to **`r rogue_value`**.
+:::
+
+### SEplot
+
+```{r rogue_seplot}
+
+# Highly expressed genes
+SEplot(entropy_result)
+
+```
+
+### Boxplot
+
+```{r rogue_boxplot}
+
+rogue.boxplot(rogue_result) +
+  scale_x_discrete(limits = sort(unique(seurat_object@meta.data$seurat_clusters))) +
+  theme(
+    axis.text = element_text(size = 16)
+  )
+
+```
+
+## Data visualization {.tabset}
+
+### Sample-based UMAP
+
+```{r umap_sample_plot}
+
+umap_sample <- DimPlot(seurat_object, reduction = "umap", group.by = "sample_id", combine = FALSE)
+
+if(auto_save) {
+
+  ggsave(plot = umap_feature, filename = paste0('figures/clustered/UMAP_SAMPLE_', timestamp, '.pdf'))
+
+}
+```
+
+### Batch-based UMAP
+
+```{r umap_batch_plot}
+
+umap_group <- DimPlot(seurat_object, reduction = "umap", group.by = "batch", combine = FALSE)
+
+if(auto_save) {
+
+  ggsave(plot = umap_feature, filename = paste0('figures/clustered/UMAP_BATCH_', timestamp, '.pdf'))
+
+}
+```
+
+### Group-based UMAP
+
+```{r umap_group_plot}
 
 if(length(input_group_plot) > 0) {
   
@@ -236,29 +364,12 @@ if(length(input_group_plot) > 0) {
   
 }
 
-```
-
-```{r umap_feature_plot, message = FALSE, warning = FALSE, echo = TRUE, fig.width = 15, fig.height = 12, dpi = 300}
-
-if(length(input_features_plot) > 0) {
-  
-  umap_feature <- FeaturePlot(seurat_object, features = input_features_plot)
-  
-  if(auto_save) {
-  
-    ggsave(plot = umap_feature, filename = paste0('figures/clustered/UMAP_FEATURED_', timestamp, '.pdf'))
-  
-  }
-
-  umap_feature
-
-}
 
 ```
 
 ## Saving Seurat object
 
-```{r object_dump, message = FALSE, warning = FALSE, echo = TRUE}
+```{r object_dump}
 
 if(auto_save) {
   
@@ -272,24 +383,15 @@ if(auto_save) {
 
 ## Parameters log
 
-```{r params_log, message = FALSE, warning = FALSE, echo = TRUE}
+```{r params_log, message = FALSE, warning = FALSE, echo = FALSE}
 
-print(
-  list(
-    project_name = project_name,
-    project_object = project_object,
-    input_group_plot = input_group_plot,
-    thr_npc = thr_npc,
-    work_directory = work_directory,
-    auto_save = auto_save
-    )
-)
+print(params)
 
 ```
 
 ## Session info
 
-```{r session_info, message = FALSE, warning = FALSE, echo = TRUE}
+```{r session_info, message = FALSE, warning = FALSE, echo = FALSE}
 
 sessionInfo()
 

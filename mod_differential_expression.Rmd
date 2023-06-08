@@ -1,0 +1,231 @@
+---
+title: "Module - Differential Expression"
+author: "BTC Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    code_folding: show
+    theme: united
+    df_print: paged
+params:
+  project_name: 'Test'
+  project_object: './dev/data/ovarian_cluster_object_determined_sanger.RDS'
+  input_deg_method: 'wilcox'
+  input_top_deg: 20
+  opt_hgv_only: True
+  thr_fold_change: 0.25
+  thr_min_percentage: 0.1
+  n_memory: 16
+  n_threads: 8
+  workdir: !r here::here()
+  timestamp: !r Sys.Date()
+  auto_save: !r TRUE
+---
+
+------------------------------------------------------------------------
+
+# Project Name: `r params$project_name`
+
+```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = FALSE}
+
+# Project parameters 
+project_name <- params$project_name
+project_object <- params$project_object
+
+# Inputs and thresholds
+input_deg_method <- params$input_deg_method
+input_top_deg <- params$input_top_deg
+
+thr_fold_change <- params$thr_fold_change
+thr_cluster_size <- params$thr_cluster_size
+thr_min_percentage <- params$thr_min_percentage
+
+# Optional parameters
+opt_hgv_only <- params$opt_hgv_only
+
+# Dataflow/Computational parameters
+n_threads <- params$n_threads
+n_memory <- params$n_memory
+
+# Output parameters
+work_directory <- params$workdir
+timestamp <- params$timestamp
+auto_save <- params$auto_save
+
+# Rmarkdown options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  error = TRUE,
+  message = FALSE, 
+  warning = FALSE,
+  fig.height = 8, 
+  fig.width = 12,
+  fig.align = 'center'
+  )
+
+knitr::opts_knit$set(
+  root.dir = work_directory
+  )
+
+```
+
+## Loading library
+
+```{r library}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(Seurat)
+library(future)
+library(DT)
+
+```
+
+## Folder structure
+
+```{r project_directory}
+
+if(!dir.exists(work_directory)) {
+  dir.create(work_directory, recursive = T)
+}
+
+for(sub_directory in c('data', 'data/deg')) {
+  dir.create(paste0(work_directory, '/', sub_directory))
+}
+
+```
+
+## Loading Seurat object
+
+```{r loading_rds}
+
+# Reading seurat object
+seurat_object <- readRDS(file = project_object)
+
+# Setting random seed
+random_seed <- 2203
+set.seed(random_seed)
+
+```
+
+## Differential expression analysis
+
+```{r finding_deg, message = FALSE, warning = FALSE, echo = TRUE, error = TRUE}
+
+# Setting pland and memory limit
+plan("multicore", workers = n_threads)
+options(future.globals.maxSize = n_memory*1024^3)
+
+# Sampling HGV
+if(opt_hgv_only) {
+  
+  hvg <- FindVariableFeatures(object = seurat_object)
+  hvg <- hvg@assays$RNA@var.features
+  
+  opt_parameters <- list(
+    features = hvg
+  )
+}
+
+# Finding all markers
+all_markers <- FindAllMarkers(
+  object = seurat_object,
+  opt_parameters,
+  only.pos = FALSE, 
+  test.use = input_deg_method,
+  logfc.threshold = thr_fold_change,
+  random.seed = random_seed,
+  min.pct = thr_min_percentage
+  )
+
+```
+> **CAPTION**: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+```{r deg_table, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Reordering all markers data.frame
+all_markers <- all_markers %>%
+  select(cluster, gene, pct.1, pct.2, p_val, avg_log2FC)
+
+# Printing out all markers
+datatable(all_markers, 
+    class = 'cell-border stripe',
+    rownames = FALSE,
+    filter = 'top',
+    width = '100%', 
+    options = list(scrollX = TRUE)
+    )
+
+```
+
+## Data Visualization {.tabset}
+
+```{r extracting_top_deg}
+
+# Extracting TOP20 DEGs per cluster
+all_markers_per_cluster <- all_markers %>%
+  group_by(cluster) %>%
+  arrange(desc(avg_log2FC)) %>%
+  mutate(
+    rank = row_number()
+  )
+
+all_markers_per_cluster <- all_markers_per_cluster %>%
+  group_by(cluster) %>%
+  slice_max(n = input_top_deg, order_by = avg_log2FC)
+
+# Removing redundant markers
+all_markers_per_cluster <- all_markers_per_cluster[
+  !duplicated(all_markers_per_cluster$gene),]
+
+# Listing genes
+top_degs_per_cluster <- all_markers_per_cluster %>%
+  pull(gene)
+
+```
+
+```{r bubble_plot, fig.height = 8, fig.width = 20}
+
+# Plotting DEGs
+DotPlot(seurat_object, features = top_degs_per_cluster) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0.9),
+    legend.position = 'top'
+  )
+
+```
+
+
+## Saving DEG data.frame
+
+```{r object_dump}
+
+if(auto_save) {
+  
+  saveRDS(all_markers, file = paste0('data/deg/', project_name, '_deg_analysis_', timestamp, '.RDS'))
+  
+}
+
+```
+
+------------------------------------------------------------------------
+
+## Parameters log
+
+```{r params_log, message = FALSE, warning = FALSE, echo = FALSE}
+
+print(params)
+
+```
+
+## Session info
+
+```{r session_info, message = FALSE, warning = FALSE, echo = FALSE}
+
+sessionInfo()
+
+```
