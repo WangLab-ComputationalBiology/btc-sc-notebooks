@@ -11,10 +11,12 @@ output:
     self_contained: true
 params:
   project_name: 'Test'
-  project_object: 'path/to/project_object'
+  project_object: './dev/data/ovarian_tme_cluster_multiple_batch.RDS'
   input_target_variables: 'batch'
+  input_batch_method: 'all'
+  thr_cell_proportion: 0.25
   thr_npc: 'auto'
-  workdir: 'path/to/work_directory'
+  workdir: !r here::here()
   timestamp: !r Sys.Date()
   auto_save: !r TRUE
 ---
@@ -30,10 +32,14 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Filter and thresholds
+input_batch_method <- params$input_batch_method
 input_target_variables <- strsplit(
   params$input_target_variables, split = ';')[[1]]
 
+# Optional parameters
+
 # Dataflow/Computational parameters
+thr_cell_proportion <- params$thr_cell_proportion
 thr_npc <- params$thr_npc
 
 # Output parameters
@@ -41,7 +47,17 @@ work_directory <- params$workdir
 timestamp <- params$timestamp
 auto_save <- params$auto_save
 
-knitr::opts_chunk$set(echo = TRUE)
+# Rmarkdown options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  error = TRUE,
+  message = FALSE, 
+  warning = FALSE,
+  fig.height = 8, 
+  fig.width = 12,
+  fig.align = 'center'
+  )
+
 knitr::opts_knit$set(
   root.dir = work_directory
   )
@@ -50,21 +66,21 @@ knitr::opts_knit$set(
 
 ## Loading library
 
-```{r library, message = FALSE, warning = FALSE, echo = TRUE}
+```{r library}
 
 library(readr)
 library(dplyr)
 library(ggplot2)
 library(Seurat)
+library(SeuratWrappers)
 library(harmony)
-library(lisi)
 library(kBET)
 
 ```
 
 ## Folder structure
 
-```{r project_directory, message = FALSE, warning = FALSE, echo = TRUE}
+```{r project_directory}
 
 if(!dir.exists(work_directory)) {
   dir.create(work_directory, recursive = T)
@@ -76,175 +92,94 @@ for(sub_directory in c('figures', 'figures/batch')) {
 
 ```
 
-```{r loading_rds, message = FALSE, warning = FALSE, echo = TRUE}
+```{r loading_rds}
 
+# Reading seurat object
 seurat_object <- readRDS(file = project_object)
 
-# Cell number
-ncell <- dim(seurat_object)[2]
+# Setting random seed
+random_seed <- 2203
+set.seed(random_seed)
 
-# Knowledge-based parameters
-if(thr_npc == 'auto') {
-  
-  thr_npc <- ifelse(ncell < 50000, 25, 50)
-  
-}
 
 ```
 
-```{r basic_input_validation, message = FALSE, warning = FALSE, echo = TRUE}
+```{r basic_input_validation}
 
 # Cell number
 ncell <- dim(seurat_object)[2]
 
 # Knowledge-based parameters
 if(thr_npc == 'auto') {
-  
   thr_npc <- ifelse(ncell < 50000, 25, 50)
-  
 }
 
+# Checking variables and metadata columns
 meta_columns <- colnames(seurat_object@meta.data)
 input_target_variables <- intersect(input_target_variables, meta_columns)
 
-```
-
-## Running Harmony
-
-```{r run_harmnony, message = FALSE, warning = FALSE, echo = TRUE}
-
-seurat_object <- RunHarmony(
-  seurat_object, 
-  input_target_variables,
-  dims = 1:thr_npc,
-  plot_convergence = TRUE)
-
-```
-
-## UMAP Calculation
-
-```{r run_umap, message = FALSE, warning = FALSE, echo = TRUE}
-
-seurat_object <- RunUMAP(
-  object = seurat_object,
-  reduction = 'harmony', 
-  dims = 1:thr_npc,
-  seed.use = 2203
+# Batch method
+boolean_vector <- 
+  switch(input_batch_method,
+  'all' = c(T, T, T, T), 
+  'cca' = c(T, F, F, F),
+  'rpca' = c(F, T, F, F),
+  'harmony' = c(F, F, T, F),
+  'mnn' = c(F, F, F, T)
 )
 
 ```
 
-::: {.alert .alert-error}
-Unfortunately, LISI and kBET analysis rely on cell annotation. This current pipeline version cannot provide metrics in a reliable way. <strong> Sorry for the disappointment </strong>. 
-:::
+```{r cca_integration, eval = boolean_vector[[1]]}
 
-### iLISI and cLISI Evaluation
-
-```{r lisi_evaluation, message = FALSE, warning = FALSE, echo = TRUE}
-
-if(FALSE) {
-
-  umap_embeddings <- Embeddings(
+seurat_object <- IntegrateLayers(
   object = seurat_object, 
-  reduction = "umap")
-
-  #
-
-  harmony_lisi <- compute_lisi(
-    umap_embeddings,
-    seurat_object@meta.data, 
-    input_target_variables,
-    perplexity = 150
-  )
-
-  #
-
-  lisi_plot <- ggplot(harmony_lisi, aes(x = batch)) + 
-    geom_density(linewidth = 1.0) + 
-    labs(title = "iLISI score") +
-    xlim(1,5) +
-    theme_classic()
-
-  lisi_plot
-
-  #
-
-  if(auto_save) {
-    
-    ggsave(plot = lisi_plot, filename = paste0('figures/batch/LISI_plot_', timestamp, '.pdf'))
-    
-  }
-
-}
+  method = CCAIntegration,
+  orig.reduction = "pca", 
+  new.reduction = "integrated.cca",
+  verbose = FALSE
+)
 
 ```
 
-### kBET Evaluation
+```{r rpca_integration, eval = boolean_vector[[2]]}
 
-```{r kbet_evaluation, message = FALSE, warning = FALSE, echo = TRUE}
+seurat_object <- IntegrateLayers(
+  object = seurat_object, 
+  method = RPCAIntegration,
+  orig.reduction = "pca", 
+  new.reduction = "integrated.rpca",
+  verbose = FALSE
+)
 
-if(FALSE) {
+```
 
-  kbet_df <- data.frame(
-  cell = colnames(seurat_object), 
-  sample = seurat_object$patient_id
-  )
+```{r harmony_integration, eval = boolean_vector[[3]]}
 
-  #
+seurat_object <- IntegrateLayers(
+  object = seurat_object, 
+  method = HarmonyIntegration,
+  orig.reduction = "pca", 
+  new.reduction = "intergrated.harmony",
+  verbose = FALSE
+)
 
-  set.seed(2203)
-  kbet_subset <- kbet_df %>% 
-    group_by(sample) %>%
-    sample_frac(size = 0.05)
+```
 
-  #
+```{r fastmnn_integration, eval = boolean_vector[[4]]}
 
-  harmony_embeddings <- Embeddings(object = seurat_object, reduction = "harmony")
-  harmony_embeddings_subset <- harmony_embeddings[kbet_subset$cell, ]
-
-  #
-
-  batch_vector <- kbet_subset$sample
-
-  #
-
-  batch_estimate <- kBET(
-    harmony_embeddings_subset, 
-    batch_vector, 
-    plot = FALSE)
-
-  #
-
-  kbet_plot_data <- data.frame(
-    class = rep(c('observed', 'expected'), 
-    each = length(batch_estimate$stats$kBET.observed)), 
-    data = c(batch_estimate$stats$kBET.observed, 
-            batch_estimate$stats$kBET.expected)
-  )
-
-  #
-
-  kbet_plot <- ggplot(kbet_plot_data, aes(class, data)) +
-    geom_boxplot() + 
-    labs(x='Test', y = 'Rejection rate', title = 'kBET Test results') +
-    theme_bw() +  
-    scale_y_continuous(limits=c(0,1))
-
-  kbet_plot
-
-  if(auto_save) {
-    
-    ggsave(plot = kbet_plot, filename = paste0('figures/batch/kBET_plot_', timestamp, '.pdf'))
-    
-  }
-
-}
+seurat_object <- IntegrateLayers(
+  object = seurat_object, 
+  method = FastMNNIntegration,
+  new.reduction = "integrated.mnn",
+  verbose = FALSE
+)
 
 ```
 
 ## Saving Seurat object
 
-```{r object_dump, message = FALSE, warning = FALSE, echo = TRUE}
+```{r object_dump}
 
 if(auto_save) {
   
@@ -258,24 +193,15 @@ if(auto_save) {
 
 ## Parameters log
 
-```{r params_log, message = FALSE, warning = FALSE, echo = TRUE}
+```{r params_log, message = FALSE, warning = FALSE, echo = FALSE}
 
-print(
-  list(
-    project_name = project_name,
-    project_object = project_object,
-    input_target_variables = input_target_variables,
-    thr_npc = thr_npc,
-    work_directory = work_directory,
-    auto_save = auto_save
-    )
-)
+print(params)
 
 ```
 
 ## Session info
 
-```{r session_info, message = FALSE, warning = FALSE, echo = TRUE}
+```{r session_info, message = FALSE, warning = FALSE, echo = FALSE}
 
 sessionInfo()
 

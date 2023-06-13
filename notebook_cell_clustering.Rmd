@@ -4,16 +4,16 @@ author: "BTC scRNA Pipeline"
 date: "`r Sys.time()`"
 output:
   html_document:
-    toc: true
-    toc_float: true
+    toc: TRUE
+    toc_float: TRUE
     toc_depth: 4
     code_folding: show
-    self_contained: true
+    self_contained: TRUE
     theme: united
     df_print: paged
 params:
   project_name: 'Test'
-  project_object: './dev/data/ovarian_tme_cluster_multiple_batch.RDS'
+  project_object: './dev/data/Test_normalize_object.RDS'
   input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
   input_group_plot: 'source_name'
   input_batch_method: 'auto'
@@ -25,7 +25,7 @@ params:
   thr_proportion: 0.25
   workdir: !r here::here()
   timestamp: !r Sys.Date()
-  auto_save: !r TRUE
+  auto_save: TRUE
 ---
 
 ------------------------------------------------------------------------
@@ -67,8 +67,8 @@ knitr::opts_chunk$set(
   warning = FALSE,
   fig.height = 8, 
   fig.width = 12,
-  dpi = 300,
-  fig.align = 'center'
+  fig.align = 'center',
+  dpi = 300
   )
 
 knitr::opts_knit$set(
@@ -195,12 +195,13 @@ seurat_object <- RunUMAP(
 
 ```
 
-```{r umap_main_plot}
+```{r umap_main_plot, fig.height = 12}
 
 # Plotting UMAP based on Seurat clusters
 umap_main <- DimPlot(
   seurat_object, 
-  reduction = "umap",
+  reduction = 'umap',
+  raster = FALSE,
   label = TRUE) +
   theme(
     legend.position = 'top',
@@ -220,19 +221,27 @@ umap_main
 ```{r clusters_density}
 
 seurat_cluster_density <- seurat_object@meta.data %>%
-  group_by(seurat_clusters)
+  group_by(seurat_clusters, patient_id) %>%
+  summarise(
+    n_cell = n()
+  )
 
-seurat_cluster_density <- table(seurat_object@meta.data$seurat_clusters)
-seurat_cluster_density <- data.frame(seurat_cluster_density)
-colnames(seurat_cluster_density) <- c('seurat_clusters', 'n_members')
+seurat_cluster_density <- seurat_cluster_density %>%
+  group_by(seurat_clusters) %>%
+  mutate(
+    total_cell = sum(n_cell),
+    percentage = (n_cell / total_cell)*100
+  )
 
-# 
+#
 
-ggplot(seurat_cluster_density, aes(x = seurat_clusters, y = n_members)) +
+ggplot(seurat_cluster_density, aes(x = seurat_clusters, y = percentage, fill = patient_id)) +
   geom_col() +
-  labs(x = "Seurat Clusters", y = "# of Cells") +
+  labs(x = "Seurat Clusters", y = "% of Cells") +
   theme_classic() +
   theme(
+    legend.text = element_text(size = 14),
+    legend.position = 'top',
     axis.text = element_text(size = 18)
   )
 
@@ -241,7 +250,8 @@ ggplot(seurat_cluster_density, aes(x = seurat_clusters, y = n_members)) +
 ```{r printing_cluster_table, message = FALSE, warning = FALSE, echo = FALSE}
 
 seurat_cluster_density %>%
-  tidyr::pivot_wider(names_from = seurat_clusters, values_from = n_members)
+  distinct(seurat_clusters, total_cell) %>%
+  tidyr::pivot_wider(names_from = seurat_clusters, values_from = total_cell)
 
 ```
 > **CAPTION:** Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
@@ -278,7 +288,11 @@ entropy_result <- SE_fun(expression_counts)
 rogue_value <- CalculateRogue(entropy_result, platform = "UMI")
 
 # Calculating ROGUE score
-rogue_result <- rogue(expression_counts, labels = sample_clusters_members$clusters, samples = sample_clusters_members$Patient, platform = "UMI", span = 0.6)
+rogue_result <- rogue(expression_counts, 
+                      labels = sample_clusters_members$clusters,
+                      samples = sample_clusters_members$Patient,
+                      platform = "UMI",
+                      span = 0.6)
 
 rogue_result
 
@@ -292,7 +306,7 @@ The ROGUE score for the clustering composition (resolution = **`r thr_resolution
 
 ```{r rogue_seplot}
 
-# Highly expressed genes
+# Highly variable genes
 SEplot(entropy_result)
 
 ```
@@ -315,26 +329,38 @@ rogue.boxplot(rogue_result) +
 
 ```{r umap_sample_plot}
 
-umap_sample <- DimPlot(seurat_object, reduction = "umap", group.by = "sample_id", combine = FALSE)
+umap_sample <- DimPlot(seurat_object, reduction = "umap", group.by = "sample_id", raster = FALSE, combine = FALSE)
 
 if(auto_save) {
 
   ggsave(plot = umap_feature, filename = paste0('figures/clustered/UMAP_SAMPLE_', timestamp, '.pdf'))
 
 }
+
+umap_sample +
+  theme(
+    legend.position = 'bottom'
+  )
+
 ```
 
 ### Batch-based UMAP
 
 ```{r umap_batch_plot}
 
-umap_group <- DimPlot(seurat_object, reduction = "umap", group.by = "batch", combine = FALSE)
+umap_group <- DimPlot(seurat_object, reduction = "umap", group.by = "batch", raster = FALSE, combine = FALSE)
 
 if(auto_save) {
 
   ggsave(plot = umap_feature, filename = paste0('figures/clustered/UMAP_BATCH_', timestamp, '.pdf'))
 
 }
+
+umap_group +
+  theme(
+    legend.position = 'bottom'
+  )
+
 ```
 
 ### Group-based UMAP
@@ -343,7 +369,7 @@ if(auto_save) {
 
 if(length(input_group_plot) > 0) {
   
-  umap_group <- DimPlot(seurat_object, reduction = "umap", group.by = input_group_plot, combine = FALSE)
+  umap_group <- DimPlot(seurat_object, reduction = "umap", group.by = input_group_plot, raster = FALSE, combine = FALSE)
 
   if(auto_save) {
   
@@ -373,7 +399,7 @@ if(length(input_group_plot) > 0) {
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0(project_name, '_cluster_object_', timestamp, '.RDS'))
+  saveRDS(seurat_object, file = paste0('data/', project_name, '_cluster_object.RDS'))
   
 }
 

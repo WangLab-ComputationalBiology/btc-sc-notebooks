@@ -1,0 +1,211 @@
+---
+title: "Module - Merging and Normalizing"
+author: "BTC Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth: 4
+    code_folding: show
+    theme: united
+    df_print: paged
+    self_contained: TRUE
+params:
+  project_name: 'Test'
+  input_qc_approved: './dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_BOWEL_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45N_ASCITES_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_INFRACOLIC_OMENTUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45N_BOWEL_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_LEFT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45N_LEFT_ADNEXA_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_LEFT_UPPER_QUADRANT_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45N_RIGHT_ADNEXA_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_PELVIC_PERITONEUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45P_ASCITES_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_RIGHT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45P_BOWEL_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_RIGHT_UPPER_QUADRANT_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45P_LEFT_ADNEXA_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_ASCITES_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45P_RIGHT_ADNEXA_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_BOWEL_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45N_ASCITES_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_INFRACOLIC_OMENTUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45N_INFRACOLIC_OMENTUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_LEFT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45N_RIGHT_FALLOPIAN_TUBE_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_LEFT_UPPER_QUADRANT_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45N_RIGHT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_PELVIC_PERITONEUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45P_ASCITES_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_RIGHT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45P_INFRACOLIC_OMENTUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_RIGHT_UPPER_QUADRANT_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45P_RIGHT_OVARY_seurat_object.RDS'
+  thr_n_features: 2000
+  workdir: !r here::here()
+  timestamp: !r Sys.Date()
+  auto_save: TRUE
+---
+
+------------------------------------------------------------------------
+
+# Project Name: `r params$project_name`
+
+```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Project parameters 
+project_name <- params$project_name
+
+# Inputs and thresholds
+input_qc_approved <- strsplit(params$input_qc_approved, split = ';')[[1]]
+
+thr_n_features <- params$thr_n_features
+
+# Optional parameters
+
+# Dataflow/Computational parameters
+
+# Output parameters
+work_directory <- params$workdir
+timestamp <- params$timestamp
+auto_save <- params$auto_save
+
+# Rmarkdown options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  error = TRUE,
+  message = FALSE, 
+  warning = FALSE,
+  fig.height = 8, 
+  fig.width = 12,
+  fig.align = 'center',
+  dpi = 300
+  )
+
+knitr::opts_knit$set(
+  root.dir = work_directory
+  )
+
+
+```
+
+## Loading library
+
+```{r library}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(Seurat)
+
+```
+
+## Folder structure
+
+```{r project_directory}
+
+if(!dir.exists(work_directory)) {
+  dir.create(work_directory, recursive = T)
+}
+
+for(sub_directory in c('data', 'figures', 'figures/normalized')) {
+  dir.create(paste0(work_directory, '/', sub_directory))
+}
+
+```
+
+## Merging and Normalizing
+
+```{r merge, message = FALSE, warning = FALSE, echo = TRUE}
+
+# Adjusting names
+sample_label <- sub(
+  '(\\S+)_seurat_object.RDS', '\\1', basename(input_qc_approved))
+
+sample_label <- setNames(
+  input_qc_approved,
+  sample_label
+)
+
+# Reading approved samples
+seurat_object_list <- list()
+for (label in names(sample_label)) {
+  seurat_object_list[[label]] <- readRDS(file = sample_label[[label]])
+  seurat_object_list[[label]] <- RenameCells(
+    seurat_object_list[[label]], add.cell.id = label)
+
+}
+
+# Merge all the objects in the list
+seurat_object <- purrr::reduce(
+  seurat_object_list, project = project_name, merge, do.normalize = FALSE)
+
+```
+
+```{r normalization, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_object <- NormalizeData(
+  object = seurat_object, 
+  normalization.method = "LogNormalize",
+  scale.factor = 10000)
+
+seurat_object <- FindVariableFeatures(
+  seurat_object, selection.method = "vst", nfeatures = thr_n_features)
+
+seurat_object <- ScaleData(seurat_object)
+
+```
+
+## Dimensionality Reduction
+
+```{r dimensionality_reduction}
+
+# Running PCA and printing out dimensions
+seurat_object <- RunPCA(seurat_object, verbose = FALSE, npcs = 100)
+print(seurat_object[["pca"]], dims = 1:5, nfeatures = 5)
+
+```
+
+### PCA Loadings
+
+```{r pca_loading_plot, fig.height = 14}
+
+VizDimLoadings(seurat_object, dims = 1:5, reduction = "pca")
+
+```
+
+### Features Plot
+
+```{r variable_plot}
+
+# Identify the 10 most highly variable genes
+variable_top10 <- head(VariableFeatures(seurat_object), 10)
+
+# plot variable features with and without labels
+variable_plot <- VariableFeaturePlot(seurat_object)
+variable_plot <- LabelPoints(
+  plot = variable_plot, points = variable_top10, repel = TRUE)
+
+variable_plot
+
+```
+
+### Elbow Plot
+
+```{r elbow_plot}
+
+elbow_plot <- ElbowPlot(object = seurat_object, ndims = 100)
+
+# Saving Elbow Plot
+if(auto_save) {
+  
+  ggsave(plot = elbow_plot, filename = 'figures/normalized/Elbow_plots.pdf')
+  
+}
+
+elbow_plot
+
+```
+
+## Saving Seurat object
+
+```{r object_dump}
+
+if(auto_save) {
+  
+  saveRDS(seurat_object, file = paste0('data/', project_name, '_normalize_object.RDS'))
+  
+}
+
+```
+
+------------------------------------------------------------------------
+
+## Parameters log
+
+```{r params_log, message = FALSE, warning = FALSE, echo = FALSE}
+
+print(params)
+
+```
+
+## Session info
+
+```{r session_info, message = FALSE, warning = FALSE, echo = FALSE}
+
+sessionInfo()
+
+```
