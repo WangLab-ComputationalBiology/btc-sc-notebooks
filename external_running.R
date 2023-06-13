@@ -13,7 +13,27 @@ cell_annotation <- TRUE
 if(main_normalize) {
   rmarkdown::render(,
       output_dir = here,
+      output_file = "Test_normalize_report.html"
+      )           
+}
+
+if(main_cluster) {
+  rmarkdown::render(,
+      output_dir = here,
       output_file = "Test_cluster_report.html"
       )           
 }
 
+if(cell_stratification) {
+  rmarkdown::render(,
+      output_dir = here,
+      output_file = "Test_stratification_report.html"
+      )           
+}
+
+if(cell_annotation) {
+  rmarkdown::render(,
+      output_dir = here,
+      output_file = "Test_annotation_report.html"
+      )           
+}

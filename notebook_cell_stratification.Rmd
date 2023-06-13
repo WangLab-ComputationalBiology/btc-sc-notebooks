@@ -20,7 +20,7 @@ params:
   thr_cluster_size: 1000
   workdir: !r here::here()
   timestamp: !r Sys.Date()
-  auto_save: !r TRUE
+  auto_save: TRUE
 ---
 
 ------------------------------------------------------------------------
@@ -86,6 +86,10 @@ library(infercnv)
 
 if(!dir.exists(work_directory)) {
   dir.create(work_directory, recursive = T)
+}
+
+for(sub_directory in c('data', 'figures', 'figures/stratification')) {
+  dir.create(paste0(work_directory, '/', sub_directory))
 }
 
 ```
@@ -507,7 +511,7 @@ seurat_object[['consensus_label']] <- apply(seurat_object[["seurat_clusters"]], 
 
 ```{r consensus_visualization}
 
-DimPlot(
+umap_consensus <- DimPlot(
   seurat_object, 
   reduction = "umap",
   label = TRUE,
@@ -516,6 +520,17 @@ DimPlot(
   theme(
     legend.position = 'top',
     legend.justification = 'center'
+  )
+
+if(auto_save) {
+
+  ggsave(plot = umap_consensus, filename = paste0('figures/stratification/UMAP_CONSENSUS_', timestamp, '.pdf'))
+
+}
+
+umap_consensus +
+  theme(
+    legend.position = 'bottom'
   )
 
 ```
