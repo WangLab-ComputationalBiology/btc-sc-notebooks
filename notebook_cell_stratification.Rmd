@@ -272,12 +272,11 @@ for(sample_prefix in names(scevan_sample_counts)) {
 
 ```
 
-```{r}
+```{r scevan_output}
 
-file.copy()
+file.rename('output', 'data/scevan')
 
 ```
-
 
 ```{r scevan_combine_metadata}
 

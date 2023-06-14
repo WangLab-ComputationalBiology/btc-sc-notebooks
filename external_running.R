@@ -31,7 +31,7 @@ if(cell_stratification) {
     "notebook_cell_stratification.Rmd",
     params = list(
       thr_proportion = 0.20,
-      n_threads = 8
+      n_threads = 20
     ),
     output_dir = here,
       output_file = "Test_stratification_report.html"
