@@ -11,28 +11,36 @@ cell_annotation <- TRUE
 
 # Rendering Rmarkdown script
 if(main_normalize) {
-  rmarkdown::render(,
+  rmarkdown::render(
+      "notebook_normalize.Rmd",
       output_dir = here,
       output_file = "Test_normalize_report.html"
       )           
 }
 
 if(main_cluster) {
-  rmarkdown::render(,
+  rmarkdown::render(
+      "notebook_cell_clustering.Rmd",
       output_dir = here,
       output_file = "Test_cluster_report.html"
       )           
 }
 
 if(cell_stratification) {
-  rmarkdown::render(,
-      output_dir = here,
+  rmarkdown::render(
+    "notebook_cell_stratification.Rmd",
+    params = list(
+      thr_proportion = 0.20,
+      n_threads = 8
+    ),
+    output_dir = here,
       output_file = "Test_stratification_report.html"
       )           
 }
 
 if(cell_annotation) {
   rmarkdown::render(,
+      "notebook_cell_annotation.Rmd",
       output_dir = here,
       output_file = "Test_annotation_report.html"
       )           

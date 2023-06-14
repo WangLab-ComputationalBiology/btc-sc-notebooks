@@ -15,7 +15,7 @@ params:
   project_name: 'Test'
   project_object: './dev/data/Test_cluster_object.RDS'
   input_cancer_type: 'Ovarian'
-  input_n_threads: 8
+  n_threads: 8
   thr_proportion: 0.20
   thr_cluster_size: 1000
   workdir: !r here::here()
@@ -35,7 +35,6 @@ project_object <- params$project_object
 
 # Inputs and thresholds
 input_cancer_type <- params$input_cancer_type
-input_n_threads <- params$input_n_threads
 
 thr_proportion <- params$thr_proportion
 thr_cluster_size <- params$thr_cluster_size
@@ -43,6 +42,7 @@ thr_cluster_size <- params$thr_cluster_size
 # Optional parameters
 
 # Dataflow/Computational parameters
+n_threads <- params$n_threads
 
 # Output parameters
 work_directory <- params$workdir
@@ -259,7 +259,7 @@ for(sample_prefix in names(scevan_sample_counts)) {
   tryCatch(
     {
         scven_result[[sample_prefix]] <- pipelineCNA(
-          scevan_sample_counts[[sample_prefix]], organism = 'human', par_cores = input_n_threads, SUBCLONES = FALSE)
+          scevan_sample_counts[[sample_prefix]], organism = 'human', par_cores = n_threads, SUBCLONES = FALSE)
     }, 
     
     error = function(e) 
@@ -271,6 +271,13 @@ for(sample_prefix in names(scevan_sample_counts)) {
 }
 
 ```
+
+```{r}
+
+file.copy()
+
+```
+
 
 ```{r scevan_combine_metadata}
 
@@ -325,12 +332,12 @@ infercnv_object <- infercnv::CreateInfercnvObject(
 
 infercnv_object <- infercnv::run(infercnv_object,
                              cutoff = 0.1,
-                             out_dir='infercnv', 
+                             out_dir='./data/infercnv',
                              cluster_by_groups = TRUE,
                              analysis_mode = 'samples',
                              denoise = TRUE,
                              HMM = TRUE,
-                             num_threads = input_n_threads
+                             num_threads = n_threads
                              )
 
 ```
@@ -339,7 +346,7 @@ infercnv_object <- infercnv::run(infercnv_object,
 
 seurat_infercnv_object <- seurat_object[,colnames(infercnv_object@expr.data)]
 seurat_infercnv_object <- infercnv::add_to_seurat(
-  infercnv_output_path = './infercnv',
+  infercnv_output_path = './data/infercnv',
   seurat_obj = seurat_infercnv_object,
   top_n = 10
   )
@@ -541,7 +548,7 @@ umap_consensus +
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('data/', project_name, '_stratification_object_', timestamp, '.RDS'))
+  saveRDS(seurat_object, file = paste0('data/', project_name, '_stratification_object.RDS'))
   
 }
 
