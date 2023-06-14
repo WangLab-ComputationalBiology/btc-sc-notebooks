@@ -15,9 +15,9 @@ params:
   project_name: 'Test'
   project_object: './dev/data/Test_cluster_object.RDS'
   input_cancer_type: 'Ovarian'
-  n_threads: 8
   thr_proportion: 0.20
   thr_cluster_size: 1000
+  n_threads: 8
   workdir: !r here::here()
   timestamp: !r Sys.Date()
   auto_save: TRUE
