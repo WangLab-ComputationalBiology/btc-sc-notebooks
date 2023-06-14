@@ -218,15 +218,15 @@ umap_main
 
 ```
 
-```{r clusters_density}
+```{r clusters_composition}
 
-seurat_cluster_density <- seurat_object@meta.data %>%
+seurat_cluster_composition <- seurat_object@meta.data %>%
   group_by(seurat_clusters, patient_id) %>%
   summarise(
     n_cell = n()
   )
 
-seurat_cluster_density <- seurat_cluster_density %>%
+seurat_cluster_composition <- seurat_cluster_composition %>%
   group_by(seurat_clusters) %>%
   mutate(
     total_cell = sum(n_cell),
@@ -235,7 +235,7 @@ seurat_cluster_density <- seurat_cluster_density %>%
 
 #
 
-ggplot(seurat_cluster_density, aes(x = seurat_clusters, y = percentage, fill = patient_id)) +
+ggplot(seurat_cluster_composition, aes(x = seurat_clusters, y = percentage, fill = patient_id)) +
   geom_col() +
   labs(x = "Seurat Clusters", y = "% of Cells") +
   theme_classic() +

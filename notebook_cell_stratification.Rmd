@@ -140,7 +140,8 @@ cell_lineage_markers <- list(
 
 # Cancer cell markers
 malignant_markers <- list(
-  "Ovarian" = c("WFDC2", "CD24", "CLDN3", "KRT7", "KRT17", "KRT18", "KRT19", "WT1", "CLDN4", "MSLN", "FOLR1", "MUC1")
+  "Ovarian" = c("WFDC2", "CD24", "CLDN3", "KRT7", "KRT17", "KRT18", "KRT19", "WT1", "CLDN4", "MSLN", "FOLR1", "MUC1"),
+  "Glioblastoma" = c("EGFR", "KRT8", "KRT18", "KRT19") # Provisional
 )
 
 # Intersecting markers
@@ -169,6 +170,68 @@ colnames(seurat_object@meta.data)[column_indexes] <-
 
 ```
 
+## Cluster composition
+
+```{r cluster_composition}
+
+# Retrieving cluster composition
+seurat_cluster_composition <- seurat_object@meta.data %>%
+  group_by(seurat_clusters, patient_id) %>%
+  summarise(
+    n_cell = n()
+  )
+
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  group_by(patient_id) %>%
+  mutate(
+    total_cell_per_patient = sum(n_cell)
+  )
+
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  ungroup() %>%
+  mutate(
+    total_cell_study = sum(total_cell_per_patient)
+  )
+
+# Cell percentage per cluster
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  group_by(seurat_clusters) %>%
+  mutate(
+    n_cell_per_cluster = sum(n_cell),
+    percentage = (n_cell / n_cell_per_cluster) * 100
+  )
+
+# Hypergeometric test
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  rowwise() %>%
+  mutate(
+    enrich_pvalue = phyper(
+      q = n_cell - 1,
+      m = total_cell_per_patient,
+      n = total_cell_study - total_cell_per_patient,
+      k = n_cell_per_cluster,
+      lower.tail = FALSE
+    )
+  )
+
+```
+
+```{r barplot_composition}
+
+# Boxplot
+ggplot(seurat_cluster_composition, aes(x = seurat_clusters, y = percentage, fill = patient_id)) +
+  geom_col() +
+  labs(x = "Seurat Clusters", y = "% of Cells") +
+  theme_classic() +
+  theme(
+    legend.text = element_text(size = 14),
+    legend.position = 'top',
+    axis.text = element_text(size = 18)
+  )
+
+```
+
+
 ### Feature Plot
 
 ```{r cell_featureplot}
@@ -193,7 +256,7 @@ VlnPlot(
 
 ```
 
-```{r sampling_per_clusters, cache = TRUE}
+```{r sampling_per_clusters}
 
 # Sampling cell per cluster
 cluster_annotation <- seurat_object@meta.data %>%
@@ -238,7 +301,7 @@ sum(table(sample_cluster_members$seurat_clusters))
 
 ## SCEVAN Analysis
 
-```{r scevan_prepare, cache = TRUE}
+```{r scevan_prepare}
 
 scevan_sample_counts <- list()
 for(sample_prefix in names(sample_cluster_list)) {

@@ -4,10 +4,10 @@
 here <- getwd()
 
 # Pipeline steps
-main_normalize <- TRUE
-main_cluster <- TRUE
+main_normalize <- FALSE
+main_cluster <- FALSE
 cell_stratification <- TRUE
-cell_annotation <- TRUE
+cell_annotation <- FALSE
 
 # Rendering Rmarkdown script
 if(main_normalize) {
