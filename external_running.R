@@ -39,7 +39,7 @@ if(cell_stratification) {
 }
 
 if(cell_annotation) {
-  rmarkdown::render(,
+  rmarkdown::render(
       "notebook_cell_annotation.Rmd",
       output_dir = here,
       output_file = "Test_annotation_report.html"
