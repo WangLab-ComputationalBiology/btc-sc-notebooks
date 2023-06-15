@@ -8,6 +8,7 @@ main_normalize <- FALSE
 main_cluster <- FALSE
 cell_stratification <- TRUE
 cell_annotation <- FALSE
+batch_correction <- FALSE
 
 # Rendering Rmarkdown script
 if(main_normalize) {
@@ -44,4 +45,16 @@ if(cell_annotation) {
       output_dir = here,
       output_file = "Test_annotation_report.html"
       )           
+}
+
+if(batch_correction) {
+  rmarkdown::render(
+    "notebook_cell_stratification.Rmd",
+    params = list(
+      thr_proportion = 0.20,
+      n_threads = 20
+    ),
+    output_dir = here,
+    output_file = "Test_stratification_report.html"
+  )         
 }

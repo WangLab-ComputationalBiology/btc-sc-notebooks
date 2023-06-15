@@ -15,7 +15,7 @@ params:
   project_name: 'Test'
   project_object: './dev/data/Test_normalize_object.RDS'
   input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
-  input_group_plot: 'source_name'
+  input_group_plot: 'source_name;Sort'
   input_batch_method: 'auto'
   n_threads: 20
   n_memory: 24
@@ -249,7 +249,7 @@ ggplot(seurat_cluster_composition, aes(x = seurat_clusters, y = percentage, fill
 
 ```{r printing_cluster_table, message = FALSE, warning = FALSE, echo = FALSE}
 
-seurat_cluster_density %>%
+seurat_cluster_composition %>%
   distinct(seurat_clusters, total_cell) %>%
   tidyr::pivot_wider(names_from = seurat_clusters, values_from = total_cell)
 
@@ -329,17 +329,18 @@ rogue.boxplot(rogue_result) +
 
 ```{r umap_sample_plot}
 
-umap_sample <- DimPlot(seurat_object, reduction = "umap", group.by = "sample_id", raster = FALSE, combine = FALSE)
+umap_sample <- DimPlot(seurat_object, reduction = "umap", group.by = "sample_id", raster = FALSE)
 
 if(auto_save) {
 
-  ggsave(plot = umap_feature, filename = paste0('figures/clustered/UMAP_SAMPLE_', timestamp, '.pdf'))
+  ggsave(plot = umap_sample, filename = paste0('figures/clustered/UMAP_SAMPLE.pdf'))
 
 }
 
 umap_sample +
   theme(
-    legend.position = 'bottom'
+    legend.position = 'bottom',
+    legend.justification = 'center'
   )
 
 ```
@@ -348,17 +349,18 @@ umap_sample +
 
 ```{r umap_batch_plot}
 
-umap_group <- DimPlot(seurat_object, reduction = "umap", group.by = "batch", raster = FALSE, combine = FALSE)
+umap_group <- DimPlot(seurat_object, reduction = "umap", group.by = "batch", raster = FALSE)
 
 if(auto_save) {
 
-  ggsave(plot = umap_feature, filename = paste0('figures/clustered/UMAP_BATCH_', timestamp, '.pdf'))
+  ggsave(plot = umap_group, filename = paste0('figures/clustered/UMAP_BATCH.pdf'))
 
 }
 
 umap_group +
   theme(
-    legend.position = 'bottom'
+    legend.position = 'bottom',
+    legend.justification = 'center'
   )
 
 ```

@@ -77,6 +77,7 @@ library(ggplot2)
 library(Seurat)
 library(SCEVAN)
 library(infercnv)
+library(rstatix)
 
 ```
 
@@ -176,45 +177,70 @@ colnames(seurat_object@meta.data)[column_indexes] <-
 
 # Retrieving cluster composition
 seurat_cluster_composition <- seurat_object@meta.data %>%
-  group_by(seurat_clusters, patient_id) %>%
+  mutate(
+    total_cell_study = n()
+  )
+
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  group_by(seurat_clusters, patient_id, total_cell_study) %>%
   summarise(
-    n_cell = n()
+    n_cell_per_patient = n()
   )
 
 seurat_cluster_composition <- seurat_cluster_composition %>%
   group_by(patient_id) %>%
   mutate(
-    total_cell_per_patient = sum(n_cell)
-  )
-
-seurat_cluster_composition <- seurat_cluster_composition %>%
-  ungroup() %>%
-  mutate(
-    total_cell_study = sum(total_cell_per_patient)
+    total_cell_per_patient = sum(n_cell_per_patient)
   )
 
 # Cell percentage per cluster
 seurat_cluster_composition <- seurat_cluster_composition %>%
   group_by(seurat_clusters) %>%
   mutate(
-    n_cell_per_cluster = sum(n_cell),
-    percentage = (n_cell / n_cell_per_cluster) * 100
+    n_cell_per_cluster = sum(n_cell_per_patient),
+    percentage = round((n_cell_per_patient / n_cell_per_cluster) * 100, 2)
   )
+
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  select(seurat_clusters, patient_id, n_cell_per_patient,
+         total_cell_per_patient, n_cell_per_cluster, total_cell_study, percentage)
 
 # Hypergeometric test
 seurat_cluster_composition <- seurat_cluster_composition %>%
   rowwise() %>%
   mutate(
-    enrich_pvalue = phyper(
-      q = n_cell - 1,
-      m = total_cell_per_patient,
+    hyper_pvalue = phyper(
+      q = n_cell_per_patient - 1,
+      m = total_cell_study,
       n = total_cell_study - total_cell_per_patient,
       k = n_cell_per_cluster,
       lower.tail = FALSE
-    )
+    ),
+    hyper_p_log = -log10(
+      ifelse(
+        hyper_pvalue == 0, hyper_pvalue + 0.0001, hyper_pvalue
+      )
+    ),
+    hyper_p_label = ifelse(
+        hyper_pvalue <= 0.05, "Yes", "No"
+      )
   )
 
+# Enrichment Plot
+ggplot(seurat_cluster_composition, 
+       aes(x = patient_id, y = seurat_clusters, color = hyper_p_label, size = hyper_p_log)) +
+  geom_point() +
+  labs(x = "Patient ID", y = "Seurat Clusters", color = "Is meaningful?", size = "-log10(P-value)") +
+  theme_classic() +
+  theme(
+    legend.text = element_text(size = 14),
+    legend.position = 'top',
+    axis.text = element_text(size = 18)
+  )
+
+
 ```
+### Sample contributions (%)
 
 ```{r barplot_composition}
 
@@ -227,6 +253,46 @@ ggplot(seurat_cluster_composition, aes(x = seurat_clusters, y = percentage, fill
     legend.text = element_text(size = 14),
     legend.position = 'top',
     axis.text = element_text(size = 18)
+  )
+
+```
+
+```{r cluster_patient_specificty}
+
+# Summarizing Hypergeometric
+seurat_cluster_summarise <- seurat_cluster_composition %>%
+  group_by(seurat_clusters) %>%
+  summarise(
+    enriched_by = sum(
+      ifelse(
+        hyper_pvalue <= 0.05, 1, 0
+      )
+    ),
+    patient_specific = ifelse(
+      enriched_by == 1, "Yes", "No"
+    )
+  )
+
+seurat_cluster_summarise <- seurat_cluster_summarise %>%
+  as.data.frame()
+
+# Adding to Seurat annotation
+seurat_object[['patient_enriched']] <- apply(seurat_object[["seurat_clusters"]], 1, function(cluster_id) {
+  seurat_cluster_summarise[seurat_cluster_summarise$seurat_clusters == cluster_id, "patient_specific"]
+})
+
+```
+
+```{r patient_specific_plot}
+
+DimPlot(seurat_object, 
+        group.by = 'patient_enriched',
+        raster = FALSE,
+        pt.size = 0.8) +
+  labs(colour = 'Patient-specific cluster:', title = NULL) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
   )
 
 ```
@@ -338,7 +404,7 @@ for(sample_prefix in names(scevan_sample_counts)) {
 
 ```{r scevan_output}
 
-if(dir.exists("output")) {
+if(dir.exists('output')) {
   file.rename('output', 'data/scevan')  
 }
 

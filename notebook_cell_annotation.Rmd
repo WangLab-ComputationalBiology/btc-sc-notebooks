@@ -13,7 +13,7 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/ovarian_tme_cluster_multiple_batch.RDS'
+  project_object: './dev/data/Test_tme_cluster_multiple_batch.RDS'
   input_cell_markers_db: './dev/data/cell_markers_database.csv'
   input_annotation_level: 'Major cells'
   n_threads: 8
