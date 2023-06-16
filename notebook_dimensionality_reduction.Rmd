@@ -1,0 +1,231 @@
+---
+title: "Module - Normalization"
+author: "BTC Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document: 
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth: 4
+    code_folding: show
+    theme: united
+    df_print: paged
+    self_contained: TRUE
+params:
+  project_name: 'Test'
+  project_object: './dev/data/Test_cell_annotation.RDS'
+  input_cell_stratification: 'infercnv_label'
+  thr_n_features: 2000
+  workdir: !r here::here()
+  timestamp: !r Sys.Date()
+  auto_save: TRUE
+---
+
+------------------------------------------------------------------------
+
+# Project Name: `r params$project_name`
+
+```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = FALSE}
+
+# Project parameters 
+project_name <- params$project_name
+project_object <- params$project_object
+
+# Inputs and thresholds
+input_cell_stratification <- params$input_cell_stratification
+
+thr_n_features <- params$thr_n_features
+
+# Optional parameters
+
+# Dataflow/Computational parameters
+
+# Output parameters
+work_directory <- params$workdir
+timestamp <- params$timestamp
+auto_save <- params$auto_save
+
+# Rmarkdown options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  error = TRUE,
+  cache = FALSE,
+  message = FALSE, 
+  warning = FALSE,
+  fig.height = 8, 
+  fig.width = 12,
+  fig.align = 'center',
+  dpi = 300
+  )
+
+knitr::opts_knit$set(
+  root.dir = work_directory
+  )
+
+```
+
+## Loading library
+
+```{r library}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(Seurat)
+
+```
+
+## Folder structure
+
+```{r project_directory}
+
+if(!dir.exists(work_directory)) {
+  dir.create(work_directory, recursive = T)
+}
+
+for(sub_directory in c('data', 'figures', 'figures/dimensionality_reduction')) {
+  dir.create(paste0(work_directory, '/', sub_directory))
+}
+
+```
+
+## Loading Seurat object
+
+```{r loading_rds}
+
+# Reading seurat object
+seurat_object <- readRDS(file = project_object)
+
+# Setting random seed
+random_seed <- 2203
+set.seed(random_seed)
+
+```
+
+## Input validation
+
+```{r basic_input_validation}
+
+# Checking variables and metadata columns
+meta_columns <- colnames(seurat_object@meta.data)
+input_cell_stratification <- intersect(input_cell_stratification, meta_columns)
+
+```
+
+## Subseting Non-malignant cells
+
+```{r seurat_subset_normal}
+
+# Extracting normal cells based on stratification analysis
+subset_command_line <- parse(
+  text = paste0("subset(seurat_object, subset = ", input_cell_stratification,  " == \"Normal\")")
+)
+
+seurat_object <- eval(subset_command_line)
+
+# Converting object to Seurat v5
+options(Seurat.object.assay.version = "v5")
+
+seurat_object[["RNA3"]] <- as(
+  object = seurat_object[["RNA"]], Class = "Assay")
+seurat_object[["RNA"]] <- as(
+  object = seurat_object[["RNA"]], Class = "Assay5")
+
+```
+
+## Counts normalization
+
+```{r normalization, message = FALSE, warning = FALSE, echo = TRUE}
+
+seurat_object <- NormalizeData(
+  object = seurat_object, 
+  normalization.method = "LogNormalize",
+  scale.factor = 10000)
+
+seurat_object <- FindVariableFeatures(
+  seurat_object, selection.method = "vst", nfeatures = thr_n_features)
+
+seurat_object <- ScaleData(seurat_object)
+
+```
+
+## Dimensionality Reduction
+
+```{r dimensionality_reduction}
+
+# Running PCA and printing out dimensions
+seurat_object <- RunPCA(seurat_object, verbose = FALSE, npcs = 100)
+print(seurat_object[["pca"]], dims = 1:5, nfeatures = 5)
+
+```
+
+### PCA Loadings
+
+```{r pca_loading_plot, fig.height = 14}
+
+VizDimLoadings(seurat_object, dims = 1:5, reduction = "pca")
+
+```
+
+### Features Plot
+
+```{r variable_plot}
+
+# Identify the 10 most highly variable genes
+variable_top10 <- head(VariableFeatures(seurat_object), 10)
+
+# plot variable features with and without labels
+variable_plot <- VariableFeaturePlot(seurat_object)
+variable_plot <- LabelPoints(
+  plot = variable_plot, points = variable_top10, repel = TRUE)
+
+variable_plot
+
+```
+
+### Elbow Plot
+
+```{r elbow_plot}
+
+elbow_plot <- ElbowPlot(object = seurat_object, ndims = 100)
+
+# Saving Elbow Plot
+if(auto_save) {
+  
+  ggsave(plot = elbow_plot, filename = 'figures/normalized/Elbow_plots.pdf')
+  
+}
+
+elbow_plot
+
+```
+
+## Saving Seurat object
+
+```{r object_dump}
+
+if(auto_save) {
+  
+  saveRDS(seurat_object, file = paste0('data/', project_name, '_nonmalignant_object.RDS'))
+  
+}
+
+```
+
+------------------------------------------------------------------------
+
+## Parameters log
+
+```{r params_log, message = FALSE, warning = FALSE, echo = FALSE}
+
+print(params)
+
+```
+
+## Session info
+
+```{r session_info, message = FALSE, warning = FALSE, echo = FALSE}
+
+sessionInfo()
+
+```

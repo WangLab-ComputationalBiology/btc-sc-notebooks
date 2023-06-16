@@ -125,6 +125,8 @@ set.seed(random_seed)
 
 ```
 
+## Input validation
+
 ```{r basic_input_validation}
 
 # Extracting gene names and metadata columns
@@ -157,9 +159,8 @@ integration_method <- function(
   
 }
 
-reduction_variable <- integration_method(
-  method = input_batch_method
-  )
+reduction_variable <- integration_method(method = input_batch_method)
+reduction_variable <- paste0("integrated.", reduction_variable)
 
 ```
 
@@ -254,8 +255,6 @@ seurat_cluster_composition %>%
   tidyr::pivot_wider(names_from = seurat_clusters, values_from = total_cell)
 
 ```
-> **CAPTION:** Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
 ## Clustering performance {.tabset}
 
 ```{r clustering_performance}
@@ -327,7 +326,7 @@ rogue.boxplot(rogue_result) +
 
 ### Sample-based UMAP
 
-```{r umap_sample_plot}
+```{r umap_sample_plot, fig.height = 12, fig.width = 14}
 
 umap_sample <- DimPlot(seurat_object, reduction = "umap", group.by = "sample_id", raster = FALSE)
 
@@ -338,6 +337,7 @@ if(auto_save) {
 }
 
 umap_sample +
+  guides(color = guide_legend(ncol = 2, override.aes = list(size = 5))) +
   theme(
     legend.position = 'bottom',
     legend.justification = 'center'
@@ -367,7 +367,7 @@ umap_group +
 
 ### Group-based UMAP
 
-```{r umap_group_plot}
+```{r umap_group_plot, fig.height = 18, fig.width = 14}
 
 if(length(input_group_plot) > 0) {
   
@@ -383,7 +383,7 @@ if(length(input_group_plot) > 0) {
           legend.justification = 'center'
           )
 
-          ggsave(plot = umap_temp, filename = paste0('figures/clustered/UMAP_GROUPED_', idx, '_', timestamp, '.pdf'))
+          ggsave(plot = umap_temp, filename = paste0('figures/clustered/UMAP_GROUPED_', idx, '.pdf'))
   
     }
   }

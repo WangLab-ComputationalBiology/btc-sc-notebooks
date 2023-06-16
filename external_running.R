@@ -16,7 +16,7 @@ if(main_normalize) {
       "notebook_normalize.Rmd",
       output_dir = here,
       output_file = "Test_normalize_report.html"
-      )           
+      )
 }
 
 if(main_cluster) {

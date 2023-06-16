@@ -15,6 +15,7 @@ params:
   project_name: 'Test'
   project_object: './dev/data/ovarian_tme_cluster_multiple_batch.RDS'
   input_deg_method: 'wilcox'
+  input_cell_category: 'all'
   input_top_deg: 20
   thr_fold_change: 0.25
   thr_min_percentage: 0.1
@@ -39,6 +40,7 @@ project_object <- params$project_object
 # Inputs and thresholds
 input_deg_method <- params$input_deg_method
 input_top_deg <- params$input_top_deg
+input_cell_category <- params$input_cell_category
 
 thr_fold_change <- params$thr_fold_change
 thr_cluster_size <- params$thr_cluster_size
@@ -112,6 +114,34 @@ seurat_object <- readRDS(file = project_object)
 # Setting random seed
 random_seed <- 2203
 set.seed(random_seed)
+
+```
+
+## Input validation
+
+```{r basic_input_validation}
+
+# Cell number
+ncell <- dim(seurat_object)[2]
+
+# Knowledge-based parameters
+if(thr_npc == 'auto') {
+  thr_npc <- ifelse(ncell < 50000, 25, 50)
+}
+
+# Checking variables and metadata columns
+meta_columns <- colnames(seurat_object@meta.data)
+input_target_variables <- intersect(input_target_variables, meta_columns)
+
+# Batch method
+boolean_vector <- 
+  switch(input_batch_method,
+  'all' = c(T, T, T, T), 
+  'cca' = c(T, F, F, F),
+  'rpca' = c(F, T, F, F),
+  'harmony' = c(F, F, T, F),
+  'mnn' = c(F, F, F, T)
+)
 
 ```
 

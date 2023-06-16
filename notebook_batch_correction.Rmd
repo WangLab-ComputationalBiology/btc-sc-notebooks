@@ -11,11 +11,10 @@ output:
     self_contained: true
 params:
   project_name: 'Test'
-  project_object: './dev/data/ovarian_tme_cluster_multiple_batch.RDS'
+  project_object: './dev/data/Test_nonmalignant_annotation.RDS'
   input_target_variables: 'batch'
   input_batch_method: 'all'
-  thr_cell_proportion: 0.25
-  thr_npc: 'auto'
+  input_cell_stratification: 'infercnv_label'
   workdir: !r here::here()
   timestamp: !r Sys.Date()
   auto_save: !r TRUE
@@ -39,8 +38,7 @@ input_target_variables <- strsplit(
 # Optional parameters
 
 # Dataflow/Computational parameters
-thr_cell_proportion <- params$thr_cell_proportion
-thr_npc <- params$thr_npc
+input_cell_stratification <- params$input_cell_stratification
 
 # Output parameters
 work_directory <- params$workdir
@@ -101,21 +99,16 @@ seurat_object <- readRDS(file = project_object)
 random_seed <- 2203
 set.seed(random_seed)
 
-
 ```
+
+## Input validation
 
 ```{r basic_input_validation}
 
-# Cell number
-ncell <- dim(seurat_object)[2]
-
-# Knowledge-based parameters
-if(thr_npc == 'auto') {
-  thr_npc <- ifelse(ncell < 50000, 25, 50)
-}
-
 # Checking variables and metadata columns
 meta_columns <- colnames(seurat_object@meta.data)
+
+input_cell_stratification <- intersect(input_cell_stratification, meta_columns)
 input_target_variables <- intersect(input_target_variables, meta_columns)
 
 # Batch method
@@ -130,6 +123,28 @@ boolean_vector <-
 
 ```
 
+## Subseting Non-malignant cells
+
+```{r seurat_subset_normal}
+
+# Extracting normal cells based on stratification analysis
+subset_command_line <- parse(
+  text = paste0("subset(seurat_object, subset = ", input_cell_stratification,  " == \"Normal\")")
+)
+
+seurat_object <- eval(subset_command_line)
+
+# Converting object to Seurat v5
+options(Seurat.object.assay.version = "v5")
+seurat_object[["RNA3"]] <- as(
+  object = seurat_object[["RNA"]], Class = "Assay")
+seurat_object[["RNA"]] <- as(
+  object = seurat_object[["RNA"]], Class = "Assay5")
+
+```
+
+## Running batch correction methods
+
 ```{r cca_integration, eval = boolean_vector[[1]]}
 
 seurat_object <- IntegrateLayers(
@@ -137,6 +152,7 @@ seurat_object <- IntegrateLayers(
   method = CCAIntegration,
   orig.reduction = "pca", 
   new.reduction = "integrated.cca",
+  group.by = input_target_variables,
   verbose = FALSE
 )
 
@@ -149,6 +165,7 @@ seurat_object <- IntegrateLayers(
   method = RPCAIntegration,
   orig.reduction = "pca", 
   new.reduction = "integrated.rpca",
+  group.by = input_target_variables,
   verbose = FALSE
 )
 
@@ -161,6 +178,7 @@ seurat_object <- IntegrateLayers(
   method = HarmonyIntegration,
   orig.reduction = "pca", 
   new.reduction = "intergrated.harmony",
+  group.by = input_target_variables,
   verbose = FALSE
 )
 
@@ -172,6 +190,7 @@ seurat_object <- IntegrateLayers(
   object = seurat_object, 
   method = FastMNNIntegration,
   new.reduction = "integrated.mnn",
+  group.by = input_target_variables,
   verbose = FALSE
 )
 
@@ -183,7 +202,7 @@ seurat_object <- IntegrateLayers(
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0(project_name, '_batch_object_', timestamp, '.RDS'))
+  saveRDS(seurat_object, file = paste0('./data/', project_name, '_batch_object.RDS'))
   
 }
 

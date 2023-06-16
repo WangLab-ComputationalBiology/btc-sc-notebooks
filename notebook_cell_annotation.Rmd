@@ -13,9 +13,10 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_tme_cluster_multiple_batch.RDS'
+  project_object: './dev/data/Test_stratification_object.RDS'
   input_cell_markers_db: './dev/data/cell_markers_database.csv'
   input_annotation_level: 'Major cells'
+  input_cell_stratification: 'infercnv_label'
   n_threads: 8
   workdir: !r here::here()
   timestamp: !r Sys.Date()
@@ -34,6 +35,7 @@ project_object <- params$project_object
 # Inputs and thresholds
 input_cell_markers_db <- params$input_cell_markers_db
 input_annotation_level <- params$input_annotation_level
+input_cell_stratification <- params$input_cell_stratification
 
 # Optional parameters
 
@@ -46,17 +48,16 @@ auto_save <- params$auto_save
 
 # Rmarkdown options
 knitr::opts_chunk$set(
-  echo = TRUE,
-  error = TRUE,
-  cache = FALSE,
-  message = FALSE, 
-  warning = FALSE,
-  fig.height = 8, 
-  fig.width = 12,
-  fig.align = 'center',
-  dpi = 300
-  )
-
+	echo = TRUE,
+	error = TRUE,
+	fig.align = "center",
+	fig.height = 8,
+	fig.width = 12,
+	message = FALSE,
+	warning = FALSE,
+	cache = FALSE,
+	dpi = 300
+)
 knitr::opts_knit$set(
   root.dir = work_directory
   )
@@ -105,6 +106,19 @@ set.seed(random_seed)
 
 ```
 
+## Subseting Normal cells
+
+```{r seurat_subset_normal}
+
+# Extracting normal cells based on stratification analysis
+subset_command_line <- parse(
+  text = paste0("subset(seurat_object, subset = ", input_cell_stratification,  " == \"Normal\")")
+)
+
+seurat_normal_object <- eval(subset_command_line)
+
+```
+
 ## Cell annotation
 
 ```{r laading_markers}
@@ -125,7 +139,10 @@ gene_list_db <- list(
 )
 
 # Load example scRNA-seq matrix
-seurat_scaled <- seurat_object@assays$RNA$scale.data
+seurat_scaled <- GetAssayData(
+  seurat_normal_object,
+  layer = "scale.data"
+)
 
 # Calculating scType score
 sctype_calculation <- sctype_score(
@@ -136,10 +153,10 @@ sctype_calculation <- sctype_score(
   )
 
 # Merge by cluster
-sctype_results <- do.call("rbind", lapply(unique(seurat_object@meta.data$seurat_clusters), function(cl) {
+sctype_results <- do.call("rbind", lapply(unique(seurat_normal_object@meta.data$seurat_clusters), function(cl) {
   
     es.max.cl <- sort(
-      rowSums(sctype_calculation[, rownames(seurat_object@meta.data[seurat_object@meta.data$seurat_clusters == cl, ])]), decreasing = !0)
+      rowSums(sctype_calculation[, rownames(seurat_normal_object@meta.data[seurat_normal_object@meta.data$seurat_clusters == cl, ])]), decreasing = !0)
     
     head(data.frame(cluster = cl, type = names(es.max.cl), scores = es.max.cl, ncells = sum(seurat_object@meta.data$seurat_clusters==cl)), 10)
     }
@@ -156,12 +173,12 @@ sctype_best_scored$type[
   as.numeric(as.character(sctype_best_scored$scores)) < sctype_best_scored$ncells/4] <- "Unknown"
 
 # Adding labels to Seurat object
-seurat_object@meta.data$sctype <- NA
+seurat_normal_object@meta.data$sctype <- NA
 for(cl in unique(sctype_best_scored$cluster)) {
   
   cl_type <- sctype_best_scored[sctype_best_scored$cluster == cl, ]
-  seurat_object@meta.data$sctype[
-    seurat_object@meta.data$seurat_clusters == cl] <- as.character(cl_type$type[1])
+  seurat_normal_object@meta.data$sctype[
+    seurat_normal_object@meta.data$seurat_clusters == cl] <- as.character(cl_type$type[1])
   
 }
 
@@ -169,8 +186,9 @@ for(cl in unique(sctype_best_scored$cluster)) {
 
 ```{r sctype_classification}
 
-# View results, cell-type by cell matrix.
-sctype_results
+# View results
+sctype_best_scored %>%
+  arrange(cluster)
 
 ```
 
@@ -178,8 +196,19 @@ sctype_results
 
 ```{r annotation_umap}
 
-DimPlot(seurat_object, reduction = 'umap', label = TRUE, repel = TRUE, group.by = 'sctype') +
-  labs(title = "scType annotation")
+DimPlot(
+  seurat_normal_object, 
+  reduction = 'umap', 
+  label = TRUE, 
+  repel = TRUE,
+  raster = FALSE,
+  group.by = 'sctype'
+  ) +
+  labs(title = "nonMalignant - scType annotation") +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
 
 ```
 
@@ -188,24 +217,31 @@ DimPlot(seurat_object, reduction = 'umap', label = TRUE, repel = TRUE, group.by 
 ```{r calculating_module_score}
 
 # Calculating ModuleScore
-cell_lineage_markers <- gene_list_db$gs_positive
+cell_markers <- gene_list_db$gs_positive
 
-for(cell_type in names(cell_lineage_markers)) {
-  seurat_object <- AddModuleScore(
-  object = seurat_object,
-  seed = random_seed,
-  features = cell_lineage_markers[cell_type],
-  name = cell_type
-  )
+# Avoiding redundant markers
+cell_markers_index <- names(cell_markers) %in% colnames(seurat_normal_object@meta.data)
+cell_markers <- cell_markers[cell_markers_index]
+
+if(length(cell_markers) > 1) {
+  
+  for(cell_type in names(cell_markers)) {
+    seurat_normal_object <- AddModuleScore(
+    object = seurat_normal_object,
+    seed = random_seed,
+    features = cell_markers[cell_type],
+    name = cell_type
+    )
+  }
+  
+  # Removing seeds on Module name
+  column_indexes <- sapply(names(cell_markers), function(column) {
+        grep(column, colnames(seurat_normal_object@meta.data))
+  })
+  colnames(seurat_normal_object@meta.data)[column_indexes] <-
+    gsub("1$", "", colnames(seurat_normal_object@meta.data)[column_indexes])
+
 }
-
-# Removing seeds on Module name
-column_indexes <- sapply(names(cell_lineage_markers), function(column) {
-      grep(column, colnames(seurat_object@meta.data))
-})
-colnames(seurat_object@meta.data)[column_indexes] <-
-  gsub("1$", "", colnames(seurat_object@meta.data)[column_indexes])
-
 
 ```
 
@@ -214,8 +250,8 @@ colnames(seurat_object@meta.data)[column_indexes] <-
 ```{r feature_plot}
 
 FeaturePlot(
-  object = seurat_object, 
-  features = names(cell_lineage_markers),
+  object = seurat_normal_object, 
+  features = names(cell_markers),
   min.cutoff = 'q1')
 
 ```
@@ -226,10 +262,43 @@ FeaturePlot(
 
 VlnPlot(
   object = seurat_object,
-  features = names(cell_lineage_markers)
+  features = names(cell_markers)
   )
 
 ```
+
+## Adding cell annotation
+
+```{r annotation_combine_metadata}
+
+seurat_object <- AddMetaData(
+  seurat_object,
+  seurat_normal_object[['sctype']]
+)
+
+seurat_object@meta.data$sctype[
+  is.na(seurat_object@meta.data$sctype)
+] <- "Malignant"
+
+```
+
+```{r umap_complete}
+
+DimPlot(
+    seurat_object, 
+    group.by = 'sctype',
+    label = TRUE,
+    raster = FALSE,
+    pt.size = 0.8
+  ) +
+  labs(colour = 'scType annotation:', title = NULL) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+```
+
 
 ## Saving Seurat object
 
