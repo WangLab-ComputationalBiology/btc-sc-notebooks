@@ -15,8 +15,10 @@ params:
   project_name: 'Test'
   project_object: './dev/data/Test_cluster_object.RDS'
   input_cancer_type: 'Ovarian'
+  input_stratification_method: 'infercnv_label'
   thr_proportion: 0.20
   thr_cluster_size: 1000
+  thr_consensus_score: 2
   n_threads: 8
   workdir: !r here::here()
   timestamp: !r Sys.Date()
@@ -35,10 +37,11 @@ project_object <- params$project_object
 
 # Inputs and thresholds
 input_cancer_type <- params$input_cancer_type
+input_stratification_method <- params$input_stratification_method
 
 thr_proportion <- params$thr_proportion
 thr_cluster_size <- params$thr_cluster_size
-
+thr_consensus_score <- params$thr_consensus_score
 # Optional parameters
 
 # Dataflow/Computational parameters
@@ -98,8 +101,7 @@ for(sub_directory in c('data', 'figures', 'figures/stratification')) {
 ```{r loading_rds}
 
 # Reading seurat object
-#seurat_object <- readRDS(file = project_object)
-seurat_object <- readRDS(file = "./dev/data/Test_stratification_object.RDS")
+seurat_object <- readRDS(file = project_object)
 
 # Setting random seed
 random_seed <- 2203
@@ -575,7 +577,7 @@ infercnv_cluster_cnv <- infercnv_summarise_cnv %>%
 infercnv_cluster_cnv <- infercnv_cluster_cnv %>%
   mutate(
     infercnv_label = if_else(
-      avg_genomwide_cnv_proportion >= mean(avg_genomwide_cnv_proportion), "Tumor", "Normal" # Malignant / nonMalignant
+      avg_genomwide_cnv_proportion >= mean(avg_genomwide_cnv_proportion), "Maliganant", "nonMalignant"
     )
   )
 
@@ -598,6 +600,7 @@ DimPlot(
     seurat_object, 
     reduction = "umap",
     label = TRUE,
+    label.size = 12,
     raster = FALSE,
     group.by = "infercnv_label"
   ) +
@@ -616,7 +619,7 @@ Under-construction feature. Please, observed that results might be case-dependen
 ```{r cnv_consensus_score}
 
 consensus_cnv_score <- seurat_infercnv_object@meta.data %>%
-  select(seurat_clusters, genomwide_cnv_proportion, n_affected_chromosomes, class, Cancer, Sort) %>%
+  select(seurat_clusters, genomwide_cnv_proportion, n_affected_chromosomes, class, Cancer, patient_enriched, Sort) %>%
   rename(scevan_label = class) %>%
   filter(scevan_label %in% c("tumor", "normal")) %>%
   mutate(
@@ -624,11 +627,20 @@ consensus_cnv_score <- seurat_infercnv_object@meta.data %>%
       scevan_label,
       "tumor"             ~ 2,
       "normal"            ~ 1
-      )
+      ),
+    patient_to_numeric = case_match(
+      patient_enriched,
+      "Yes"               ~ 2,
+      "No"                ~ 1
+    )
   )
 
 #
-consensus_cnv_score
+
+consensus_cnv_score %>%
+  arrange(seurat_clusters) %>%
+  group_by(seurat_clusters) %>%
+  top_n(10, Cancer)
 
 ```
 
@@ -636,7 +648,7 @@ consensus_cnv_score
 
 consensus_cnv_score <- consensus_cnv_score %>%
   mutate(
-    consensus_score = (genomwide_cnv_proportion + Cancer) ^ scevan_to_numeric
+    consensus_score = (genomwide_cnv_proportion + Cancer) ^ patient_to_numeric
   )
 
 #
@@ -659,7 +671,7 @@ consensus_cluster_label <- consensus_cnv_score %>%
 consensus_cluster_label <- consensus_cluster_label %>%
   mutate(
     consensus_label = if_else(
-      median_consensus_score >= 2, "Tumor", "Normal"
+      median_consensus_score >= thr_consensus_score, "Malignant", "nonMalignant"
     )
   )
 
@@ -701,7 +713,7 @@ umap_consensus <- DimPlot(
     seurat_object, 
     reduction = "umap",
     label = TRUE,
-    label.size = 12
+    label.size = 12,
     raster = FALSE,
     group.by = "consensus_label"
   ) +
@@ -728,10 +740,28 @@ umap_consensus +
 
 ```{r object_dump}
 
+# Saving full Seurat object
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('./data/', project_name, '_stratification_object.RDS'))
+  saveRDS(seurat_object, file = paste0('./data/', project_name, '_main_stratification_object.RDS'))
   
+}
+
+# Subsetting cells based on stratification analysis
+for(cell_category in c("Malignant", "nonMalignant")) {
+  
+  subset_command_line <- parse(
+    text = paste0("subset(seurat_object, subset = ", input_stratification_method,  " == \"", cell_category, "\")")
+  )
+  
+  seurat_category_object <- eval(subset_command_line)
+
+  if(auto_save) {
+  
+    saveRDS(seurat_category_object, file = paste0('./data/', project_name, "_", cell_category, '_stratification_object.RDS'))
+  
+  }
+
 }
 
 ```

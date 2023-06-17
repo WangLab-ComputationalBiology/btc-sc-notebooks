@@ -1,5 +1,13 @@
 #!/usr/bin/env Rscript
 
+if(!require("annotables")) {
+  install.packages("annotables", Ncpus = 8, repos = 'http://cran.us.r-project.org', clean = TRUE)  
+}
+
+if(!require("HGNChelper")) {
+  install.packages("HGNChelper", Ncpus = 8, repos = 'http://cran.us.r-project.org', clean = TRUE)  
+}
+
 # Getting run work directory
 here <- getwd()
 
@@ -8,10 +16,10 @@ main_normalize <- FALSE
 main_clustering <- FALSE
 cell_stratification <- FALSE
 cell_annotation <- FALSE
-normal_reduction <- TRUE
-batch_correction <- TRUE
+normal_reduction <- FALSE
+batch_correction <- FALSE
 normal_cluster <- TRUE
-normal_deg <- FALSE
+normal_deg <- TRUE
 malignant_deg <- FALSE
 malignant_programs <- FALSE
 
@@ -45,7 +53,7 @@ if(main_clustering) {
 }
 
 # Step X - Description
-# Output: Test_stratification_object.RDS
+# Output: Test_stratification_object.RDS, Test_nonMalignant_stratification_object.RDS, Test_Malignant_stratification_object.RDS
 if(cell_stratification) {
   rmarkdown::render(
     "notebook_cell_stratification.Rmd",
@@ -65,7 +73,7 @@ if(cell_annotation) {
   rmarkdown::render(
       "notebook_cell_annotation.Rmd",
       params = list(
-        project_object = "./data/Test_stratification_object.RDS"
+        project_object = "./data/Test_nonMalignant_stratification_object.RDS"
       ),
       output_dir = here,
       output_file = "Test_annotation_report.html"
@@ -73,7 +81,7 @@ if(cell_annotation) {
 }
 
 # Step X - Description
-# Output: Test_nonmalignant_reduction_object.RDS
+# Output: Test_nonMalignant_reduction_object.RDS
 if(normal_reduction) {
   rmarkdown::render(
       "notebook_dimensionality_reduction.Rmd",
@@ -81,7 +89,7 @@ if(normal_reduction) {
           project_object = "./data/Test_cell_annotation.RDS",
           input_stratification_method = 'infercnv_label',
           input_cell_category = "Normal",
-          input_step_name = "nonmalignant"
+          input_step_name = "nonMalignant"
         ),
       output_dir = here,
       output_file = "Test_nonmalignant_dimensionality_report.html"
@@ -89,31 +97,45 @@ if(normal_reduction) {
 }
 
 # Step X - Description
-# Output: Test_nonmalignant_batch_object.RDS
+# Output: Test_nonMalignant_batch_object.RDS
 if(batch_correction) {
   rmarkdown::render(
     "notebook_batch_correction.Rmd",
     params = list(
-          project_object = "./data/Test_nonmalignant_reduction_object.RDS",
+          project_object = "./data/Test_nonMalignant_reduction_object.RDS",
           input_integration_method = "harmony",
-          input_step_name = "nonmalignant"
+          input_step_name = "nonMalignant"
       ),
     output_dir = here,
     output_file = "Test_nonmalignant_report.html"
   )         
 }
 
-# Step X - Description
-# Output: Test_nonmalignant_cluster_object.RDS
+# Step X - Cluster nonMalignant cells
+# Output: Test_nonMalignant_cluster_object.RDS
 if(normal_cluster) {
   rmarkdown::render(
       "notebook_cell_clustering.Rmd",
       params = list(
-          project_object = "./data/Test_batch_object.RDS",
+          project_object = "./data/Test_nonMalignant_batch_object.RDS",
           input_integration_method = "harmony",
-          input_step_name = "nonmalignant"
+          input_step_name = "nonMalignant"
         ),
       output_dir = here,
       output_file = "Test_nonmalignant_cluster_report.html"
       )
 }
+
+# Step X - Description
+# Output: Test_nonMalignant_deg_object.RDS
+if(normal_deg) {
+  rmarkdown::render(
+    "notebook_differential_expression.Rmd",
+    params = list(
+      project_object = "./data/Test_nonMalignant_cluster_object.RDS"
+    ),
+    output_dir = here,
+    output_file = "Test_nonmalignant_deg_report.html"
+  )
+}
+

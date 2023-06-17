@@ -13,7 +13,7 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_stratification_object.RDS'
+  project_object: './dev/data/Test_nonMalignant_stratification_object.RDS'
   input_cell_markers_db: './dev/data/cell_markers_database.csv'
   input_annotation_level: 'Major cells'
   input_cell_stratification: 'infercnv_label'
@@ -103,19 +103,6 @@ seurat_object <- readRDS(file = project_object)
 # Setting random seed
 random_seed <- 2203
 set.seed(random_seed)
-
-```
-
-## Subseting Normal cells
-
-```{r seurat_subset_normal}
-
-# Extracting normal cells based on stratification analysis
-subset_command_line <- parse(
-  text = paste0("subset(seurat_object, subset = ", input_cell_stratification,  " == \"Normal\")")
-)
-
-seurat_normal_object <- eval(subset_command_line)
 
 ```
 

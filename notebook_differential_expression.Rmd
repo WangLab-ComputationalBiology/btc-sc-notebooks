@@ -13,10 +13,11 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/ovarian_tme_cluster_multiple_batch.RDS'
+  project_object: './data/Test_nonMalignant_cluster_object.RDS'
   input_deg_method: 'wilcox'
-  input_cell_category: 'all'
+  input_integration_method: 'fastmnn'
   input_top_deg: 20
+  input_step_name: "main"
   thr_fold_change: 0.25
   thr_min_percentage: 0.1
   opt_hgv_filter: TRUE
@@ -40,7 +41,7 @@ project_object <- params$project_object
 # Inputs and thresholds
 input_deg_method <- params$input_deg_method
 input_top_deg <- params$input_top_deg
-input_cell_category <- params$input_cell_category
+input_integration_method <- params$input_integration_method
 
 thr_fold_change <- params$thr_fold_change
 thr_cluster_size <- params$thr_cluster_size
@@ -121,27 +122,33 @@ set.seed(random_seed)
 
 ```{r basic_input_validation}
 
-# Cell number
-ncell <- dim(seurat_object)[2]
-
-# Knowledge-based parameters
-if(thr_npc == 'auto') {
-  thr_npc <- ifelse(ncell < 50000, 25, 50)
-}
-
 # Checking variables and metadata columns
 meta_columns <- colnames(seurat_object@meta.data)
-input_target_variables <- intersect(input_target_variables, meta_columns)
+input_integration_method <- intersect(input_integration_method, meta_columns)
 
-# Batch method
-boolean_vector <- 
-  switch(input_batch_method,
-  'all' = c(T, T, T, T), 
-  'cca' = c(T, F, F, F),
-  'rpca' = c(F, T, F, F),
-  'harmony' = c(F, F, T, F),
-  'mnn' = c(F, F, F, T)
-)
+```
+
+## Clustering summary {.tabset}
+
+```{r clustering_summary}
+
+DimPlot(
+    seurat_object, 
+    reduction = "umap",
+    label = TRUE,
+    raster = FALSE,
+    label.size = 12
+  ) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+```
+
+```{r}
+
+
 
 ```
 
@@ -160,7 +167,6 @@ if(opt_hgv_filter) {
   hvg <- FindVariableFeatures(object = seurat_object)
   hvg <- VariableFeatures(object = seurat_object)
   
-  # Finding all markers
   all_markers <- FindAllMarkers(
     object = seurat_object,
     only.pos = FALSE, 
@@ -173,20 +179,19 @@ if(opt_hgv_filter) {
 } else {
   
   # Finding all markers
-all_markers <- FindAllMarkers(
-  object = seurat_object,
-  only.pos = FALSE, 
-  test.use = input_deg_method,
-  logfc.threshold = thr_fold_change,
-  random.seed = random_seed,
-  min.pct = thr_min_percentage
-  )
+  all_markers <- FindAllMarkers(
+    object = seurat_object,
+    only.pos = FALSE, 
+    test.use = input_deg_method,
+    logfc.threshold = thr_fold_change,
+    random.seed = random_seed,
+    min.pct = thr_min_percentage
+    )
 
 }
 
 
 ```
-> **CAPTION**: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
 
 ```{r deg_table, message = FALSE, warning = FALSE, echo = TRUE}
 
@@ -248,7 +253,7 @@ DotPlot(seurat_object, features = top_degs_per_cluster) +
 
 if(auto_save) {
   
-  saveRDS(all_markers, file = paste0('data/deg/', project_name, '_deg_analysis.RDS'))
+  saveRDS(all_markers, file = paste0('data/deg/', project_name, "_", input_step_name, '_deg_analysis.RDS'))
   
 }
 

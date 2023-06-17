@@ -13,7 +13,7 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_nonmalignant_object.RDS'
+  project_object: './dev/data/Test_nonMalignant_reduction_object.RDS'
   input_target_variables: 'batch'
   input_integration_method: 'all'
   input_step_name: "main"
@@ -158,7 +158,7 @@ seurat_object <- IntegrateLayers(
   object = seurat_object, 
   method = HarmonyIntegration,
   orig.reduction = "pca", 
-  new.reduction = "intergrated.harmony",
+  new.reduction = "harmony",
   group.by = input_target_variables,
   verbose = FALSE
 )
@@ -184,7 +184,6 @@ seurat_object <- IntegrateLayers(
 seurat_object <- JoinLayers(seurat_object)
 
 ```
-
 
 ## Saving Seurat object
 

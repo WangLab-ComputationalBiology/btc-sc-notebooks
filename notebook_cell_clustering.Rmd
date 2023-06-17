@@ -13,7 +13,7 @@ output:
     df_print: paged
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_batch_object.RDS'
+  project_object: './dev/data/Test_nonMalignant_batch_object.RDS'
   input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
   input_group_plot: 'source_name;Sort'
   input_integration_method: 'auto'
@@ -140,7 +140,7 @@ input_group_plot <- intersect(input_group_plot, metadata_columns)
 
 # Setting reduction variable
 integration_method <- function(
-    method = c('pca', 'mnn', 'rpca', 'cca', 'harmony', 'auto')) {
+    method = c('pca', 'integrated.mnn', 'integrated.rpca', 'integrated.cca', 'harmony', 'auto')) {
 
   # Default reduction
   reduction_variable <- 'pca'
@@ -161,7 +161,6 @@ integration_method <- function(
 }
 
 reduction_variable <- integration_method(method = input_integration_method)
-#reduction_variable <- paste0("integrated.", reduction_variable)
 
 ```
 
