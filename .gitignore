@@ -5,6 +5,7 @@
 *.RDS
 
 *.html
+*.zip
 
 dev/
 data/

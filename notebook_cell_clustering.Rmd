@@ -16,7 +16,7 @@ params:
   project_object: './dev/data/Test_batch_object.RDS'
   input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
   input_group_plot: 'source_name;Sort'
-  input_integration_method: 'harmony'
+  input_integration_method: 'auto'
   input_step_name: 'main'
   thr_quantile: 'q01'
   thr_npc: 'auto'
@@ -63,16 +63,15 @@ auto_save <- params$auto_save
 
 # Rmarkdown options
 knitr::opts_chunk$set(
-  echo = TRUE,
-  error = TRUE,
-  message = FALSE, 
-  warning = FALSE,
-  fig.height = 8, 
-  fig.width = 12,
-  fig.align = 'center',
-  dpi = 300
-  )
-
+	echo = TRUE,
+	error = TRUE,
+	fig.align = "center",
+	fig.height = 8,
+	fig.width = 12,
+	message = FALSE,
+	warning = FALSE,
+	dpi = 300
+)
 knitr::opts_knit$set(
   root.dir = work_directory
   )
@@ -165,6 +164,7 @@ reduction_variable <- integration_method(method = input_integration_method)
 #reduction_variable <- paste0("integrated.", reduction_variable)
 
 ```
+
 ::: {.alert .alert-warning}
 The clustering step will be performed over the **`r reduction_variable`** reduction.
 :::
@@ -256,6 +256,7 @@ seurat_cluster_composition %>%
   tidyr::pivot_wider(names_from = seurat_clusters, values_from = total_cell)
 
 ```
+
 ## Clustering performance {.tabset}
 
 ```{r clustering_performance}
