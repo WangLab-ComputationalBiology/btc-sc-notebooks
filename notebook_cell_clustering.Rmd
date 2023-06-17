@@ -13,16 +13,17 @@ output:
     df_print: paged
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_normalize_object.RDS'
+  project_object: './dev/data/Test_batch_object.RDS'
   input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
   input_group_plot: 'source_name;Sort'
-  input_batch_method: 'auto'
-  n_threads: 20
-  n_memory: 24
+  input_integration_method: 'harmony'
+  input_step_name: 'main'
   thr_quantile: 'q01'
   thr_npc: 'auto'
   thr_resolution: 0.25
   thr_proportion: 0.25
+  n_threads: 8
+  n_memory: 8
   workdir: !r here::here()
   timestamp: !r Sys.Date()
   auto_save: TRUE
@@ -39,11 +40,12 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Inputs and thresholds
-input_batch_method <- params$input_batch_method
+input_integration_method <- params$input_integration_method
 input_features_plot <- strsplit(
   params$input_features_plot, split = ';')[[1]]
 input_group_plot <- strsplit(
   params$input_group_plot, split = ';')[[1]]
+input_step_name <- params$input_step_name
 
 thr_npc <- params$thr_npc
 thr_resolution <- params$thr_resolution
@@ -152,18 +154,17 @@ integration_method <- function(
   }
   
   if(method %in% names(seurat_object@reductions)) {
-    reduction_variable <- input_batch_method
+    reduction_variable <- method
   } 
   
   return(reduction_variable)
   
 }
 
-reduction_variable <- integration_method(method = input_batch_method)
-reduction_variable <- paste0("integrated.", reduction_variable)
+reduction_variable <- integration_method(method = input_integration_method)
+#reduction_variable <- paste0("integrated.", reduction_variable)
 
 ```
-
 ::: {.alert .alert-warning}
 The clustering step will be performed over the **`r reduction_variable`** reduction.
 :::
@@ -401,7 +402,7 @@ if(length(input_group_plot) > 0) {
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('data/', project_name, '_cluster_object.RDS'))
+  saveRDS(seurat_object, file = paste0('./data/', project_name, '_', input_step_name, '_cluster_object.RDS'))
   
 }
 

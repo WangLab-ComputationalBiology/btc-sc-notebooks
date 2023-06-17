@@ -14,7 +14,9 @@ output:
 params:
   project_name: 'Test'
   project_object: './dev/data/Test_cell_annotation.RDS'
-  input_cell_stratification: 'infercnv_label'
+  input_stratification_method: 'infercnv_label'
+  input_cell_category: "Normal"
+  input_step_name: "main"
   thr_n_features: 2000
   workdir: !r here::here()
   timestamp: !r Sys.Date()
@@ -32,7 +34,9 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Inputs and thresholds
-input_cell_stratification <- params$input_cell_stratification
+input_stratification_method <- params$input_stratification_method
+input_cell_category <- params$input_cell_category
+input_step_name <- params$input_step_name
 
 thr_n_features <- params$thr_n_features
 
@@ -108,17 +112,17 @@ set.seed(random_seed)
 
 # Checking variables and metadata columns
 meta_columns <- colnames(seurat_object@meta.data)
-input_cell_stratification <- intersect(input_cell_stratification, meta_columns)
+input_stratification_method <- intersect(input_stratification_method, meta_columns)
 
 ```
 
-## Subseting Non-malignant cells
+## Subsetting Non-malignant cells
 
 ```{r seurat_subset_normal}
 
 # Extracting normal cells based on stratification analysis
 subset_command_line <- parse(
-  text = paste0("subset(seurat_object, subset = ", input_cell_stratification,  " == \"Normal\")")
+  text = paste0("subset(seurat_object, subset = ", input_stratification_method,  " == \"", input_cell_category, "\")")
 )
 
 seurat_object <- eval(subset_command_line)
@@ -126,10 +130,15 @@ seurat_object <- eval(subset_command_line)
 # Converting object to Seurat v5
 options(Seurat.object.assay.version = "v5")
 
-seurat_object[["RNA3"]] <- as(
-  object = seurat_object[["RNA"]], Class = "Assay")
-seurat_object[["RNA"]] <- as(
-  object = seurat_object[["RNA"]], Class = "Assay5")
+seurat_object <- 
+  CreateSeuratObject(
+    counts = GetAssayData(seurat_object, layer = "counts"),
+    meta.data = seurat_object@meta.data
+    )
+
+# Splitting object
+seurat_object[["RNA"]] <- split(
+  seurat_object[["RNA"]], f = seurat_object$batch)
 
 ```
 
@@ -206,7 +215,7 @@ elbow_plot
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('data/', project_name, '_nonmalignant_object.RDS'))
+  saveRDS(seurat_object, file = paste0('./data/', project_name, '_', input_step_name, '_reduction_object.RDS'))
   
 }
 

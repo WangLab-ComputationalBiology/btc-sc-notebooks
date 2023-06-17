@@ -4,20 +4,23 @@ author: "BTC Pipeline"
 date: "`r Sys.time()`"
 output:
   html_document:
-    toc: true
-    toc_float: true
-    toc_depth: 3
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth: 4
     code_folding: show
-    self_contained: true
+    theme: united
+    df_print: paged
+    self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_nonmalignant_annotation.RDS'
+  project_object: './dev/data/Test_nonmalignant_object.RDS'
   input_target_variables: 'batch'
-  input_batch_method: 'all'
-  input_cell_stratification: 'infercnv_label'
+  input_integration_method: 'all'
+  input_step_name: "main"
+  n_memory: 8
   workdir: !r here::here()
   timestamp: !r Sys.Date()
-  auto_save: !r TRUE
+  auto_save: TRUE
 ---
 
 ------------------------------------------------------------------------
@@ -31,14 +34,15 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Filter and thresholds
-input_batch_method <- params$input_batch_method
+input_integration_method <- params$input_integration_method
 input_target_variables <- strsplit(
   params$input_target_variables, split = ';')[[1]]
+input_step_name <- params$input_step_name
 
 # Optional parameters
 
 # Dataflow/Computational parameters
-input_cell_stratification <- params$input_cell_stratification
+n_memory <- params$n_memory
 
 # Output parameters
 work_directory <- params$workdir
@@ -99,47 +103,24 @@ seurat_object <- readRDS(file = project_object)
 random_seed <- 2203
 set.seed(random_seed)
 
+# Expanding memory
+options(future.globals.maxSize = n_memory*1024^3)
+
 ```
 
 ## Input validation
 
 ```{r basic_input_validation}
 
-# Checking variables and metadata columns
-meta_columns <- colnames(seurat_object@meta.data)
-
-input_cell_stratification <- intersect(input_cell_stratification, meta_columns)
-input_target_variables <- intersect(input_target_variables, meta_columns)
-
 # Batch method
 boolean_vector <- 
-  switch(input_batch_method,
+  switch(input_integration_method,
   'all' = c(T, T, T, T), 
   'cca' = c(T, F, F, F),
   'rpca' = c(F, T, F, F),
   'harmony' = c(F, F, T, F),
   'mnn' = c(F, F, F, T)
 )
-
-```
-
-## Subseting Non-malignant cells
-
-```{r seurat_subset_normal}
-
-# Extracting normal cells based on stratification analysis
-subset_command_line <- parse(
-  text = paste0("subset(seurat_object, subset = ", input_cell_stratification,  " == \"Normal\")")
-)
-
-seurat_object <- eval(subset_command_line)
-
-# Converting object to Seurat v5
-options(Seurat.object.assay.version = "v5")
-seurat_object[["RNA3"]] <- as(
-  object = seurat_object[["RNA"]], Class = "Assay")
-seurat_object[["RNA"]] <- as(
-  object = seurat_object[["RNA"]], Class = "Assay5")
 
 ```
 
@@ -196,13 +177,22 @@ seurat_object <- IntegrateLayers(
 
 ```
 
+## Unifying sample layers
+
+```{r seurat_rejoin}
+
+seurat_object <- JoinLayers(seurat_object)
+
+```
+
+
 ## Saving Seurat object
 
 ```{r object_dump}
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('./data/', project_name, '_batch_object.RDS'))
+  saveRDS(seurat_object, file = paste0('./data/', project_name, '_', input_step_name, '_batch_object.RDS'))
   
 }
 

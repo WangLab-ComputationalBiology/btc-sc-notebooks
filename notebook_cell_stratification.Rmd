@@ -730,7 +730,7 @@ umap_consensus +
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('data/', project_name, '_stratification_object.RDS'))
+  saveRDS(seurat_object, file = paste0('./data/', project_name, '_stratification_object.RDS'))
   
 }
 
