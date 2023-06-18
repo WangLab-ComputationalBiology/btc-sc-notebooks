@@ -146,9 +146,18 @@ DimPlot(
 
 ```
 
-```{r}
+```{r cell_annot_summary}
 
-
+DimPlot(
+    seurat_object, 
+    reduction = "umap",
+    group.by = "sctype",
+    raster = FALSE,
+  ) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
 
 ```
 

@@ -13,7 +13,7 @@ output:
     df_print: paged
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_nonMalignant_batch_object.RDS'
+  project_object: './data/Test_nonMalignant_batch_object.RDS'
   input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
   input_group_plot: 'source_name;Sort'
   input_integration_method: 'auto'
@@ -231,7 +231,7 @@ seurat_cluster_composition <- seurat_cluster_composition %>%
   group_by(seurat_clusters) %>%
   mutate(
     total_cell = sum(n_cell),
-    percentage = (n_cell / total_cell)*100
+    percentage = round((n_cell / total_cell) * 100, digits = 2)
   )
 
 #

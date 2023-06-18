@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 if(!require("annotables")) {
-  install.packages("annotables", Ncpus = 8, repos = 'http://cran.us.r-project.org', clean = TRUE)  
+  devtools::install_github("stephenturner/annotables", repos = 'http://cran.us.r-project.org')
 }
 
 if(!require("HGNChelper")) {
@@ -18,8 +18,8 @@ cell_stratification <- FALSE
 cell_annotation <- FALSE
 normal_reduction <- FALSE
 batch_correction <- FALSE
-normal_cluster <- TRUE
-normal_deg <- TRUE
+normal_cluster <- FALSE
+normal_deg <- FALSE
 malignant_deg <- FALSE
 malignant_programs <- FALSE
 
@@ -45,7 +45,8 @@ if(main_clustering) {
   rmarkdown::render(
       "notebook_cell_clustering.Rmd",
       params = list(
-        project_object = "./data/Test_normalize_object.RDS"
+        project_object = "./data/Test_normalize_object.RDS",
+        input_integration_method = 'pca'
       ),
       output_dir = here,
       output_file = "Test_cluster_report.html"
@@ -59,8 +60,8 @@ if(cell_stratification) {
     "notebook_cell_stratification.Rmd",
     params = list(
         project_object = "./data/Test_main_cluster_object.RDS",
-        thr_proportion = 0.20,
-        n_threads = 20
+        thr_proportion = 0.05,
+        n_threads = 8
       ),
     output_dir = here,
       output_file = "Test_stratification_report.html"
