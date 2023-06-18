@@ -13,10 +13,10 @@ output:
     df_print: paged
 params:
   project_name: 'Test'
-  project_object: './data/Test_nonMalignant_batch_object.RDS'
+  project_object: './data/Test_normalize_object.RDS'
   input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
   input_group_plot: 'source_name;Sort'
-  input_integration_method: 'auto'
+  input_integration_method: 'pca'
   input_step_name: 'main'
   thr_quantile: 'q01'
   thr_npc: 'auto'

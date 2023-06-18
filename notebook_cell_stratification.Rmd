@@ -13,7 +13,7 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_cluster_object.RDS'
+  project_object: './data/Test_main_cluster_object.RDS'
   input_cancer_type: 'Ovarian'
   input_stratification_method: 'infercnv_label'
   thr_proportion: 0.20
@@ -445,7 +445,10 @@ if(dir.exists('output')) {
 ```{r scevan_combine_metadata}
 
 scven_annotation <- dplyr::bind_rows(scven_result)
-seurat_object <- AddMetaData(seurat_object, metadata = scven_annotation)
+seurat_object <- AddMetaData(
+  seurat_object, 
+  metadata = scven_annotation
+  )
 
 ```
 
@@ -577,7 +580,7 @@ infercnv_cluster_cnv <- infercnv_summarise_cnv %>%
 infercnv_cluster_cnv <- infercnv_cluster_cnv %>%
   mutate(
     infercnv_label = if_else(
-      avg_genomwide_cnv_proportion >= mean(avg_genomwide_cnv_proportion), "Maliganant", "nonMalignant"
+      avg_genomwide_cnv_proportion >= mean(avg_genomwide_cnv_proportion), "Malignant", "nonMalignant"
     )
   )
 

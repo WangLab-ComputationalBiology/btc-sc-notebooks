@@ -13,7 +13,7 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './data/Test_nonMalignant_cluster_object.RDS'
+  project_object: './dev/data/Test_nonMalignant_cluster_object.RDS'
   input_deg_method: 'wilcox'
   input_integration_method: 'fastmnn'
   input_top_deg: 20
@@ -44,7 +44,6 @@ input_top_deg <- params$input_top_deg
 input_integration_method <- params$input_integration_method
 
 thr_fold_change <- params$thr_fold_change
-thr_cluster_size <- params$thr_cluster_size
 thr_min_percentage <- params$thr_min_percentage
 
 # Optional parameters
@@ -176,8 +175,10 @@ if(opt_hgv_filter) {
   hvg <- FindVariableFeatures(object = seurat_object)
   hvg <- VariableFeatures(object = seurat_object)
   
+  # Finding HGV markers
   all_markers <- FindAllMarkers(
     object = seurat_object,
+    features = hvg,
     only.pos = FALSE, 
     test.use = input_deg_method,
     logfc.threshold = thr_fold_change,
@@ -262,7 +263,7 @@ DotPlot(seurat_object, features = top_degs_per_cluster) +
 
 if(auto_save) {
   
-  saveRDS(all_markers, file = paste0('data/deg/', project_name, "_", input_step_name, '_deg_analysis.RDS'))
+  saveRDS(all_markers, file = paste0('data/deg/', project_name, "_", input_step_name, '_deg_object.RDS'))
   
 }
 

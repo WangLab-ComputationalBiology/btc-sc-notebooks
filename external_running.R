@@ -14,12 +14,12 @@ here <- getwd()
 # Pipeline steps
 main_normalize <- FALSE
 main_clustering <- FALSE
-cell_stratification <- FALSE
-cell_annotation <- FALSE
-normal_reduction <- FALSE
-batch_correction <- FALSE
-normal_cluster <- FALSE
-normal_deg <- FALSE
+cell_stratification <- TRUE
+cell_annotation <- TRUE
+normal_reduction <- TRUE
+batch_correction <- TRUE
+normal_cluster <- TRUE
+normal_deg <- TRUE
 malignant_deg <- FALSE
 malignant_programs <- FALSE
 
@@ -60,7 +60,7 @@ if(cell_stratification) {
     "notebook_cell_stratification.Rmd",
     params = list(
         project_object = "./data/Test_main_cluster_object.RDS",
-        thr_proportion = 0.05,
+        thr_proportion = 0.20,
         n_threads = 8
       ),
     output_dir = here,

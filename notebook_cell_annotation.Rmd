@@ -13,8 +13,8 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_nonMalignant_stratification_object.RDS'
-  input_cell_markers_db: './dev/data/cell_markers_database.csv'
+  project_object: './data/Test_nonMalignant_stratification_object.RDS'
+  input_cell_markers_db: './cell_markers_database.csv'
   input_annotation_level: 'Major cells'
   input_cell_stratification: 'infercnv_label'
   n_threads: 8
