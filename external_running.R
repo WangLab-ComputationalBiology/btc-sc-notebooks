@@ -14,13 +14,19 @@ here <- getwd()
 # Pipeline steps
 main_normalize <- FALSE
 main_clustering <- FALSE
-cell_stratification <- TRUE
-cell_annotation <- TRUE
-normal_reduction <- TRUE
-batch_correction <- TRUE
-normal_cluster <- TRUE
-normal_deg <- TRUE
-malignant_deg <- FALSE
+cell_stratification <- FALSE
+cell_annotation <- FALSE
+
+# Non-malignant
+normal_reduction <- FALSE
+batch_correction <- FALSE
+normal_cluster <- FALSE
+normal_deg <- FALSE
+
+# Malignant
+malignant_reduction <- FALSE
+malignant_cluster <- FALSE
+malignant_deg <- TRUE
 malignant_programs <- FALSE
 
 # Command singularity
@@ -68,6 +74,8 @@ if(cell_stratification) {
     )           
 }
 
+########### nonMalignant ###########
+
 # Step X - Description
 # Output: Test_cell_annotation.RDS
 if(cell_annotation) {
@@ -88,8 +96,6 @@ if(normal_reduction) {
       "notebook_dimensionality_reduction.Rmd",
       params = list(
           project_object = "./data/Test_cell_annotation.RDS",
-          input_stratification_method = 'infercnv_label',
-          input_cell_category = "Normal",
           input_step_name = "nonMalignant"
         ),
       output_dir = here,
@@ -133,10 +139,57 @@ if(normal_deg) {
   rmarkdown::render(
     "notebook_differential_expression.Rmd",
     params = list(
-      project_object = "./data/Test_nonMalignant_cluster_object.RDS"
+      project_object = "./data/Test_nonMalignant_cluster_object.RDS",
+      input_step_name = "nonMalignant"
     ),
     output_dir = here,
     output_file = "Test_nonmalignant_deg_report.html"
   )
 }
 
+########### Malignant ###########
+
+# Step X - Description
+# Output: Test_Malignant_reduction_object.RDS
+if(malignant_reduction) {
+  rmarkdown::render(
+      "notebook_dimensionality_reduction.Rmd",
+      params = list(
+          project_object = "./data/Test_Malignant_stratification_object.RDS",
+          input_step_name = "Malignant"
+        ),
+      output_dir = here,
+      output_file = "Test_malignant_dimensionality_report.html"
+      )           
+}
+
+# Step X - Cluster nonMalignant cells
+# Output: Test_Malignant_cluster_object.RDS
+if(malignant_cluster) {
+  rmarkdown::render(
+      "notebook_cell_clustering.Rmd",
+      params = list(
+          project_object = "./data/Test_Malignant_reduction_object.RDS",
+          input_integration_method = "pca",
+          input_step_name = "Malignant"
+        ),
+      output_dir = here,
+      output_file = "Test_malignant_cluster_report.html"
+      )
+}
+
+# Step X - Description
+# Output: Test_Malignant_deg_object.RDS
+if(malignant_deg) {
+  rmarkdown::render(
+    "notebook_differential_expression.Rmd",
+    params = list(
+      project_object = "./data/Test_Malignant_cluster_object.RDS",
+      input_step_name = "Malignant",
+      input_n_features = 5000,
+      thr_fold_change = 0.1
+    ),
+    output_dir = here,
+    output_file = "Test_malignant_deg_report.html"
+  )
+}

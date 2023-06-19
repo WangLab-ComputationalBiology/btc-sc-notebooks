@@ -18,6 +18,7 @@ params:
   input_integration_method: 'fastmnn'
   input_top_deg: 20
   input_step_name: "main"
+  input_n_features: 2000
   thr_fold_change: 0.25
   thr_min_percentage: 0.1
   opt_hgv_filter: TRUE
@@ -42,6 +43,7 @@ project_object <- params$project_object
 input_deg_method <- params$input_deg_method
 input_top_deg <- params$input_top_deg
 input_integration_method <- params$input_integration_method
+input_n_features <- params$input_n_features
 
 thr_fold_change <- params$thr_fold_change
 thr_min_percentage <- params$thr_min_percentage
@@ -125,6 +127,12 @@ set.seed(random_seed)
 meta_columns <- colnames(seurat_object@meta.data)
 input_integration_method <- intersect(input_integration_method, meta_columns)
 
+# Checking annotation
+boolean_annotation <- FALSE
+if("scytype" %in% meta_columns) {
+  boolean_annotation <- TRUE
+}
+
 ```
 
 ## Clustering summary {.tabset}
@@ -145,7 +153,7 @@ DimPlot(
 
 ```
 
-```{r cell_annot_summary}
+```{r cell_annot_summary, eval = boolean_annotation}
 
 DimPlot(
     seurat_object, 
@@ -179,7 +187,9 @@ if(opt_hgv_filter) {
   all_markers <- FindAllMarkers(
     object = seurat_object,
     features = hvg,
-    only.pos = FALSE, 
+    only.pos = FALSE,
+    selection.method = "vst",
+    nfeatures = input_n_features,
     test.use = input_deg_method,
     logfc.threshold = thr_fold_change,
     random.seed = random_seed,
@@ -192,6 +202,8 @@ if(opt_hgv_filter) {
   all_markers <- FindAllMarkers(
     object = seurat_object,
     only.pos = FALSE, 
+    selection.method = "vst",
+    nfeatures = input_n_features,
     test.use = input_deg_method,
     logfc.threshold = thr_fold_change,
     random.seed = random_seed,
@@ -199,7 +211,6 @@ if(opt_hgv_filter) {
     )
 
 }
-
 
 ```
 
