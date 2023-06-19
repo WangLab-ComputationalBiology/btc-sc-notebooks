@@ -126,6 +126,14 @@ set.seed(random_seed)
 
 ```
 
+## Unifying sample layers
+
+```{r seurat_rejoin}
+
+seurat_object <- JoinLayers(seurat_object)
+
+```
+
 ## Input validation
 
 ```{r basic_input_validation}

@@ -177,14 +177,6 @@ seurat_object <- IntegrateLayers(
 
 ```
 
-## Unifying sample layers
-
-```{r seurat_rejoin}
-
-seurat_object <- JoinLayers(seurat_object)
-
-```
-
 ## Saving Seurat object
 
 ```{r object_dump}

@@ -100,7 +100,7 @@ if(!dir.exists(work_directory)) {
   dir.create(work_directory, recursive = T)
 }
 
-for(sub_directory in c('data', 'data/deg')) {
+for(sub_directory in c('data', 'figures/deg')) {
   dir.create(paste0(work_directory, '/', sub_directory))
 }
 
@@ -132,7 +132,6 @@ boolean_annotation <- FALSE
 if("scytype" %in% meta_columns) {
   boolean_annotation <- TRUE
 }
-
 ```
 
 ## Clustering summary {.tabset}
