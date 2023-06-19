@@ -13,7 +13,7 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_nonMalignant_cluster_object.RDS'
+  project_object: './data/Test_nonMalignant_cluster_object.RDS'
   input_deg_method: 'wilcox'
   input_integration_method: 'fastmnn'
   input_top_deg: 20
@@ -180,16 +180,19 @@ options(future.globals.maxSize = n_memory*1024^3)
 if(opt_hgv_filter) {
   
   # Retrieving VariableFeatures
-  hvg <- FindVariableFeatures(object = seurat_object)
+  hvg <- FindVariableFeatures(
+    object = seurat_object,
+    selection.method = "vst",
+     nfeatures = input_n_features
+     )
+
   hvg <- VariableFeatures(object = seurat_object)
   
-  # Finding HGV markers
+  # Finding DEG based on HGV genes
   all_markers <- FindAllMarkers(
     object = seurat_object,
     features = hvg,
     only.pos = FALSE,
-    selection.method = "vst",
-    nfeatures = input_n_features,
     test.use = input_deg_method,
     logfc.threshold = thr_fold_change,
     random.seed = random_seed,
@@ -202,8 +205,6 @@ if(opt_hgv_filter) {
   all_markers <- FindAllMarkers(
     object = seurat_object,
     only.pos = FALSE, 
-    selection.method = "vst",
-    nfeatures = input_n_features,
     test.use = input_deg_method,
     logfc.threshold = thr_fold_change,
     random.seed = random_seed,
@@ -274,7 +275,7 @@ DotPlot(seurat_object, features = top_degs_per_cluster) +
 
 if(auto_save) {
   
-  saveRDS(all_markers, file = paste0('data/deg/', project_name, "_", input_step_name, '_deg_object.RDS'))
+  saveRDS(all_markers, file = paste0('data/', project_name, "_", input_step_name, '_deg_object.RDS'))
   
 }
 

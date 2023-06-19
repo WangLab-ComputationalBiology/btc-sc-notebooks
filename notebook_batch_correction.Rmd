@@ -13,7 +13,7 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_nonMalignant_reduction_object.RDS'
+  project_object: './data/Test_nonMalignant_reduction_object.RDS'
   input_target_variables: 'batch'
   input_integration_method: 'all'
   input_step_name: "main"

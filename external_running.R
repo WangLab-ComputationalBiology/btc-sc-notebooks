@@ -114,7 +114,7 @@ if(batch_correction) {
           input_step_name = "nonMalignant"
       ),
     output_dir = here,
-    output_file = "Test_nonmalignant_report.html"
+    output_file = "Test_nonmalignant_batch_report.html"
   )         
 }
 

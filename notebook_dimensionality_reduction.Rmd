@@ -13,7 +13,7 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './dev/data/Test_cell_annotation.RDS'
+  project_object: './data/Test_cell_annotation.RDS'
   input_step_name: "main"
   thr_n_features: 2000
   workdir: !r here::here()
