@@ -12,22 +12,22 @@ if(!require("HGNChelper")) {
 here <- getwd()
 
 # Pipeline steps
-main_normalize <- FALSE
-main_clustering <- FALSE
-cell_stratification <- FALSE
-cell_annotation <- FALSE
+main_normalize <- TRUE
+main_clustering <- TRUE
+cell_stratification <- TRUE
+cell_annotation <- TRUE
 
 # Non-malignant
-normal_reduction <- FALSE
-batch_correction <- FALSE
-normal_cluster <- FALSE
-normal_deg <- FALSE
+normal_reduction <- TRUE
+batch_correction <- TRUE
+normal_cluster <- TRUE
+normal_deg <- TRUE
 
 # Malignant
-malignant_reduction <- FALSE
-malignant_cluster <- FALSE
+malignant_reduction <- TRUE
+malignant_cluster <- TRUE
 malignant_deg <- TRUE
-malignant_programs <- FALSE
+malignant_programs <- TRUE
 
 # Command singularity
 # singularity exec -B /rsrch6/home/genomic_med/affaustino/Projects/btc-scrna-pipeline/notebook/ scpackages_1.1.sif /usr/bin/sh
@@ -191,5 +191,20 @@ if(malignant_deg) {
     ),
     output_dir = here,
     output_file = "Test_malignant_deg_report.html"
+  )
+}
+
+# Step X - Description
+# Output: Test_Malignant_meta_object.RDS
+if(malignant_deg) {
+  rmarkdown::render(
+    "notebook_meta_programs.Rmd",
+    params = list(
+      project_object = "./data/Test_Malignant_cluster_object.RDS",
+      input_cell_category = "Malignant",
+      input_step_name = "Malignant",
+    ),
+    output_dir = here,
+    output_file = "Test_malignant_meta_report.html"
   )
 }

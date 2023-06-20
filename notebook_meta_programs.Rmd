@@ -13,7 +13,10 @@ output:
     self_contained: TRUE
 params:
   project_name: 'Test'
-  project_object: './data/PREVIOUS_OUPUT.RDS'
+  project_object: './data/Test_Malignant_cluster_object.RDS'
+  input_meta_programs: 'meta_programs.csv'
+  input_cell_category: 'Malignant'
+  input_step_name: 'main'
   n_threads: 8
   workdir: !r here::here()  
   timestamp: !r Sys.Date()
@@ -31,6 +34,9 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Inputs and thresholds
+input_meta_programs <- params$input_meta_programs
+input_cell_category <- params$input_cell_category
+input_step_name <- params$input_step_name
 
 # Optional parameters
 
@@ -79,7 +85,7 @@ if(!dir.exists(work_directory)) {
   dir.create(work_directory, recursive = T)
 }
 
-for(sub_directory in c('data', 'figures', 'figures/MODULE_NAME')) {
+for(sub_directory in c('data', 'figures', 'figures/meta')) {
   dir.create(paste0(work_directory, '/', sub_directory))
 }
 
@@ -92,16 +98,146 @@ for(sub_directory in c('data', 'figures', 'figures/MODULE_NAME')) {
 # Reading seurat object
 seurat_object <- readRDS(file = project_object)
 
+# Loading meta-programs
+meta_programs_db <- read_csv(file = input_meta_programs)
+
 # Setting random seed
 random_seed <- 2203
 set.seed(random_seed)
 
 ```
 
-```{r CODE_HERE}
+## Input validation
+
+```{r basic_input_validation}
+
+input_cell_category <- intersect(
+  input_cell_category, c('B cells', 'CD4 T cells', 'CD8 T cells', 'Endothelial', 'Epithelial', 'Fibroblasts',
+'Macrophages', 'Malignant')
+)
+
+meta_programs <- meta_programs_db %>%
+  filter(source %in% input_cell_category)
 
 ```
 
+## Clustering summary
+
+```{r clustering_summary}
+
+DimPlot(
+    seurat_object, 
+    reduction = "umap",
+    label = TRUE,
+    raster = FALSE,
+    label.size = 12
+  ) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+```
+## Module-score
+
+```{r calculating_module_score}
+
+
+# Converting to list
+meta_programs <- split(
+  meta_programs$gene_marker,
+  meta_programs$meta_program
+  )
+
+# Fixing meta-programs names
+names(meta_programs) <- 
+  gsub("[()]", "", names(meta_programs))
+names(meta_programs) <- 
+  gsub(' ','_', names(meta_programs))
+
+# Calculating ModuleScore
+if(length(meta_programs) > 1) {
+  
+  for(program_type in names(meta_programs)) {
+    seurat_object <- AddModuleScore(
+      object = seurat_object,
+      seed = random_seed,
+      features = meta_programs[program_type],
+      name = program_type
+    )
+  }
+  
+  # Removing seeds on Module name
+  column_indexes <- sapply(names(meta_programs), function(column) {
+        grep(paste0(column, "1"), colnames(seurat_object@meta.data))
+  })
+  
+  colnames(seurat_object@meta.data)[column_indexes] <-
+    gsub("1$", "", colnames(seurat_object@meta.data)[column_indexes])
+
+}
+
+```
+
+## Ploting Meta-programs heatmap
+
+```{r meta_heatmap}
+
+# Preparing matrix and annotation
+seurat_to_heatmap <- seurat_object@meta.data %>%
+  tibble::rownames_to_column(var = "barcode")
+
+# Extracting cluster labels
+seurat_annotation_bar <- seurat_to_heatmap %>%
+  tibble::column_to_rownames(var = "barcode") %>%
+  select(seurat_clusters)
+
+# Retrieving module scores
+seurat_meta_matrix <- seurat_to_heatmap %>%
+  tibble::column_to_rownames(var = "barcode") %>%
+  select(!!colnames(seurat_object@meta.data)[column_indexes])
+
+heat_plot <- pheatmap::pheatmap(
+  t(seurat_meta_matrix), 
+  annotation_col = seurat_annotation_bar,
+  scale = 'column',
+  cluster_cols = FALSE,
+  cutree_rows = 5,
+  show_colnames = FALSE
+  )
+
+```
+
+```{r saving_meta_heatmap}
+
+# Saving in a PDF file
+save_pheatmap <- 
+  function(x, filename, width = 14, height = 10) {
+   
+  stopifnot(!missing(x))
+  stopifnot(!missing(filename))
+   
+  pdf(filename, width = width, height = height)
+   grid::grid.newpage()
+   grid::grid.draw(x$gtable)
+  dev.off()
+}
+
+save_pheatmap(heat_plot, paste0('figures/meta/', project_name, '_', input_step_name,'_heatmap.pdf'))
+
+```
+
+
+### Feature Plot
+
+```{r feature_plot, fig.height = 25}
+
+FeaturePlot(
+  object = seurat_object, 
+  features = names(meta_programs),
+  min.cutoff = 'q1')
+
+```
 
 ## Saving Seurat object
 
@@ -109,7 +245,7 @@ set.seed(random_seed)
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('data/', project_name, '_MODULE_NAME.RDS'))
+  saveRDS(seurat_object, file = paste0('data/', project_name, '_', input_step_name, '_meta_object.RDS'))
   
 }
 

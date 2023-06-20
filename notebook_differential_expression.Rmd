@@ -42,6 +42,7 @@ project_object <- params$project_object
 # Inputs and thresholds
 input_deg_method <- params$input_deg_method
 input_top_deg <- params$input_top_deg
+input_step_name <- params$input_step_name
 input_integration_method <- params$input_integration_method
 input_n_features <- params$input_n_features
 
@@ -136,7 +137,7 @@ if("scytype" %in% meta_columns) {
 
 ## Clustering summary {.tabset}
 
-```{r clustering_summary}
+```{r clustering_summary, fig.height = 12, fig.width = 14}
 
 DimPlot(
     seurat_object, 
@@ -152,7 +153,7 @@ DimPlot(
 
 ```
 
-```{r cell_annot_summary, eval = boolean_annotation}
+```{r cell_annot_summary, fig.height = 12, fig.width = 14, eval = boolean_annotation}
 
 DimPlot(
     seurat_object, 
@@ -164,6 +165,12 @@ DimPlot(
     legend.position = 'top',
     legend.justification = 'center'
   )
+
+```
+
+```{r cell_annot_barplot, fig.height = 12, fig.width = 14, eval = boolean_annotation}
+
+
 
 ```
 
@@ -257,14 +264,42 @@ top_degs_per_cluster <- all_markers_per_cluster %>%
 
 ```
 
-```{r bubble_plot, fig.height = 8, fig.width = 20}
+```{r main_bubble_plot, fig.height = 12, fig.width = 45}
 
 # Plotting DEGs
-DotPlot(seurat_object, features = top_degs_per_cluster) +
+main_dotplot <- DotPlot(seurat_object, features = top_degs_per_cluster) +
   theme(
     axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0.9),
     legend.position = 'top'
   )
+
+main_dotplot
+
+if(auto_save) {
+
+  ggsave(plot = main_dotplot, filename = paste0('figures/deg/BUBBLEPLOT_', input_step_name, '.pdf'))
+
+}
+
+```
+
+```{r annot_bubble_plot, fig.height = 45, fig.width = 12}
+
+annot_dotplot <- DotPlot(seurat_object, features = top_degs_per_cluster, group.by = "sctype") +
+  coord_flip() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0.9),
+    legend.position = 'top'
+  )
+
+annot_dotplot
+
+if(auto_save) {
+
+  ggsave(plot = annot_dotplot, filename = paste0('figures/deg/BUBBLEPLOT_ANNOTATION_', input_step_name, '.pdf'))
+
+}
 
 ```
 

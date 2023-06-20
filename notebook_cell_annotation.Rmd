@@ -203,25 +203,25 @@ DimPlot(
 ```{r calculating_module_score}
 
 # Calculating ModuleScore
-cell_markers <- gene_list_db$gs_positive
+non_malignant_markers <- gene_list_db$gs_positive
 
 # Avoiding redundant markers
-cell_markers_index <- names(cell_markers) %in% colnames(seurat_object@meta.data)
-cell_markers <- cell_markers[cell_markers_index]
+non_malignant_markers_index <- names(non_malignant_markers) %in% colnames(seurat_object@meta.data)
+non_malignant_markers <- non_malignant_markers[non_malignant_markers_index]
 
-if(length(cell_markers) > 1) {
+if(length(non_malignant_markers) > 1) {
   
-  for(cell_type in names(cell_markers)) {
+  for(cell_type in names(non_malignant_markers)) {
     seurat_object <- AddModuleScore(
     object = seurat_object,
     seed = random_seed,
-    features = cell_markers[cell_type],
+    features = non_malignant_markers[cell_type],
     name = cell_type
     )
   }
   
   # Removing seeds on Module name
-  column_indexes <- sapply(names(cell_markers), function(column) {
+  column_indexes <- sapply(names(non_malignant_markers), function(column) {
         grep(column, colnames(seurat_object@meta.data))
   })
   colnames(seurat_object@meta.data)[column_indexes] <-
@@ -237,7 +237,7 @@ if(length(cell_markers) > 1) {
 
 FeaturePlot(
   object = seurat_object, 
-  features = names(cell_markers),
+  features = names(non_malignant_markers),
   min.cutoff = 'q1')
 
 ```
@@ -248,10 +248,59 @@ FeaturePlot(
 
 VlnPlot(
   object = seurat_object,
-  features = names(cell_markers)
+  features = names(non_malignant_markers)
   )
 
 ```
+
+## Cluster composition per cell type
+
+```{r cluster_composition}
+
+# Retrieving cluster composition
+seurat_cluster_composition <- seurat_object@meta.data %>%
+  mutate(
+    total_cell_study = n()
+  )
+
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  group_by(seurat_clusters, sctype, total_cell_study) %>%
+  summarise(
+    n_cell_per_patient = n()
+  )
+
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  group_by(sctype) %>%
+  mutate(
+    total_cell_per_patient = sum(n_cell_per_patient)
+  )
+
+# Cell percentage per cluster
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  group_by(seurat_clusters) %>%
+  mutate(
+    n_cell_per_cluster = sum(n_cell_per_patient),
+    percentage = round((n_cell_per_patient / n_cell_per_cluster) * 100, 2)
+  )
+
+```
+
+
+```{r barplot_composition}
+
+# Boxplot
+ggplot(seurat_cluster_composition, aes(x = seurat_clusters, y = percentage, fill = sctype)) +
+  geom_col() +
+  labs(x = "Seurat Clusters", y = "% of Cells", fill = "Cell annotation:") +
+  theme_classic() +
+  theme(
+    legend.text = element_text(size = 14),
+    legend.position = 'top',
+    axis.text = element_text(size = 18)
+  )
+
+```
+
 
 ## Saving Seurat object
 
