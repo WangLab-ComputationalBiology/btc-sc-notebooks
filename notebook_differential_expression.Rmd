@@ -179,8 +179,8 @@ DimPlot(
 ```{r finding_deg, message = FALSE, warning = FALSE, echo = TRUE, error = TRUE}
 
 # Setting pland and memory limit
-plan("multicore", workers = n_threads)
 options(future.globals.maxSize = n_memory*1024^3)
+plan("multicore", workers = n_threads)
 
 # Sampling HGV
 if(opt_hgv_filter) {
@@ -309,7 +309,7 @@ if(auto_save) {
 
 if(auto_save) {
   
-  saveRDS(all_markers, file = paste0('data/', project_name, "_", input_step_name, '_deg_object.RDS'))
+  saveRDS(all_markers, file = paste0('data/', project_name, "_", input_step_name, '_deg_table.RDS'))
   
 }
 

@@ -12,7 +12,14 @@ output:
     df_print: paged
 params:
   project_name: 'Test'
-  project_object: './data/ovarian_cluster_object_determined_sanger.RDS'
+  project_object: './data/Test_nonMalignant_batch_object.RDS'
+  input_target_variables: 'batch'
+  input_integration_method: 'all'
+  input_auto_selection: !r TRUE
+  thr_npc: 'auto' 
+  thr_resolution: 0.25
+  thr_cell_proportion: 0.30
+  n_memory: 8
   n_threads: 8
   workdir: !r here::here()
   timestamp: !r Sys.Date()
@@ -30,10 +37,19 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Inputs and thresholds
+input_target_variables <- params$input_target_variables
+input_integration_method <- params$input_integration_method
+input_auto_selection <- params$input_auto_selection
+
+thr_resolution <- params$thr_resolution
+thr_npc <- params$thr_npc
+thr_cell_proportion <- params$thr_cell_proportion
 
 # Optional parameters
 
 # Dataflow/Computational parameters
+n_memory <- params$n_memory
+n_threads <- params$n_threads
 
 # Output parameters
 work_directory <- params$workdir
@@ -65,6 +81,10 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 library(Seurat)
+library(scPOP)
+library(kBET)
+library(lisi)
+library(patchwork)
 
 ```
 
@@ -76,7 +96,7 @@ if(!dir.exists(work_directory)) {
   dir.create(work_directory, recursive = T)
 }
 
-for(sub_directory in c('data', 'data/MODULE_NAME')) {
+for(sub_directory in c('data', 'figures', 'figures/evaluation')) {
   dir.create(paste0(work_directory, '/', sub_directory))
 }
 
@@ -89,80 +109,306 @@ for(sub_directory in c('data', 'data/MODULE_NAME')) {
 # Reading seurat object
 seurat_object <- readRDS(file = project_object)
 
+# Cell number
+ncell <- dim(seurat_object)[2]
+
+# Knowledge-based parameters
+if(thr_npc == 'auto') {
+  thr_npc <- ifelse(ncell < 50000, 25, 50)
+}
+
 # Setting random seed
 random_seed <- 2203
 set.seed(random_seed)
+
+# Setting pland and memory limit
+options(future.globals.maxSize = n_memory*1024^3)
+
+```
+
+## Input validation
+
+```{r basic_input_validation}
+
+# Batch method
+integration_method_vector <- 
+  switch(input_integration_method,
+  'all' = c('integrated.cca', 'integrated.rpca', 'harmony', 'integrated.mnn'), 
+  'cca' = 'cca',
+  'rpca' = 'rpca',
+  'harmony' = 'harmony',
+  'mnn' = 'mnn'
+)
+
+integration_method_vector <- intersect(
+  integration_method_vector,
+  names(seurat_object@reductions)
+)
+
+```
+
+## Sampling cells
+
+```{r sampling_per_batch}
+
+# Updating input_target_variables with sctype
+input_target_variables <- c(
+  input_target_variables,
+  "sctype"
+)
+
+# Sampling cell per cluster
+seurat_cell_subset <- seurat_object@meta.data %>%
+  select_at(input_target_variables) %>%
+  tibble::rownames_to_column(var = 'cell')
+  
+seurat_cell_subset <- seurat_cell_subset %>%
+  group_by_at(input_target_variables) %>%
+  sample_frac(size = thr_cell_proportion) %>%
+  as.data.frame()
+
+seurat_cell_subset <- seurat_cell_subset$cell
+
+# Resizing Seurat object
+seurat_object[["barcode"]] <- colnames(seurat_object)
+seurat_object <- subset(
+  seurat_object, subset = barcode %in% seurat_cell_subset)
+
+# # of cells after filtering
+table(seurat_object@meta.data[, input_target_variables])
 
 ```
 
 ## Quality metrics
 
-```{r lisi_calculation}
+```{r kbet_mean_calculation}
 
+kbet_calcution <- function(seurat_object, batch_method) {
 
-
-```
-
-```{r kbet_calculation}
-
-kbet_calcution <- function(seurat_object, input_target_variables, batch_method) {
-
-    # Extracting batch and cell ids
-    kbet_data <- seurat_object@meta.data %>%
-      select(!!input_target_variables) %>%
-      tibble::rownames_to_column(var = 'cell')
+    kbet_list <- sapply(unique(seurat_object$seurat_clusters), function(cluster_id) {
       
-    kbet_data <- kbet_data %>%
-      group_by(!!input_target_variables) %>%
-      sample_frac(size = thr_cell_proportion) %>%
-      as.data.frame()
-    
-    # Retrieving embeddings from batch method
-    batch_method_embeddings <- Embeddings(object = seurat_object, reduction = batch_method)
-    batch_method_embeddings <- batch_method_embeddings[kbet_data$cell, ]
-    
-    # Estimating kBET statistics
-    batch_estimate <- kBET(
-      harmony_embeddings_subset, 
-      batch = kbet_data[, input_target_variables], 
-      plot = FALSE)
-    
-    # Creating kBET table
-    kbet_plot_data <- data.frame(
-      class = rep(c('observed', 'expected'), 
-      each = length(batch_estimate$stats$kBET.observed)), 
-      data = c(batch_estimate$stats$kBET.observed, 
-              batch_estimate$stats$kBET.expected)
+      seurat_tmp <- subset(seurat_object, subset = seurat_clusters == cluster_id)
+      data_tmp <- Embeddings(
+        object = seurat_tmp, reduction = batch_method)
+      batch_tmp <- seurat_tmp@meta.data$batch
+      
+      kBET_tmp <- kBET(df = data_tmp, batch = batch_tmp, plot=FALSE)
+      kBET_tmp$summary$kBET.observed[1]
+
+      }
     )
     
-    # Boxplot generation
-    kbet_plot <- ggplot(kbet_plot_data, aes(class, data)) +
-      geom_boxplot() + 
-      labs(x = batch_method, y = 'Rejection rate', title = 'kBET Test results') +
-      theme_bw() +  
-      scale_y_continuous(limits = c(0, 1))
-    
-    kbet_plot
-    
+    mean_kBET <- sum(kbet_list)/length(unique(seurat_object$seurat_clusters))
+
 }
 
 ```
 
-```{r}
 
-# Adjusted rand index (ARI) for cell label
-# Normalised mutual information (NMI) for cell label
+```{r evaluation_quality_metrics}
+
+quality_metrics_summarise <- list()
+integration_umap <- list()
+
+for (batch_method in integration_method_vector) {
+  
+  # Finding clusters
+  seurat_object <- FindNeighbors(
+    object = seurat_object, 
+    reduction = batch_method, 
+    dims = 1:thr_npc,
+    graph.name = paste0('snn_npc', thr_npc)
+  )
+
+  # Setting multicore
+  plan("multicore", workers = n_threads)
+  
+  seurat_object <- FindClusters(
+    object = seurat_object,
+    graph.name = paste0('snn_npc', thr_npc),
+    cluster.name = paste0(batch_method, '_cluster'),
+    resolution = thr_resolution
+  )
+  
+  # Running UMAP reduction
+  seurat_object <- RunUMAP(
+    object = seurat_object,
+    reduction = batch_method, 
+    dims = 1:thr_npc,
+    seed.use = random_seed
+  )
+
+  # Storing UMAP
+  integration_umap[[batch_method]] <- DimPlot(
+    seurat_object, 
+    reduction = "umap",
+    group.by = input_target_variables,
+    raster = FALSE,
+  ) +
+    labs(title = batch_method) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+  
+  # Retrieving embeddings from batch method
+  batch_method_embeddings <- Embeddings(
+    object = seurat_object, reduction = batch_method
+  )
+
+  metrics <- run_all_metrics(
+    reduction = batch_method_embeddings, 
+    metadata = seurat_object@meta.data,
+    batch_key = 'batch',
+    label1_key = 'sctype',
+    label2_key = 'seurat_clusters', 
+    run_name = paste0(project_name, "_", batch_method)
+  )
+  
+  metrics$kbet_mean <- kbet_calcution(seurat_object, batch_method)
+  quality_metrics_summarise[[batch_method]] <- metrics
+  
+}
+
+scpop_zscore <- calc_sumZscore(
+  quality_metrics_summarise, 'batch')
 
 ```
 
+## Batch metrics inspection
 
-## Saving DEG data.frame
+```{r metrics_inspection}
+
+quality_metrics_summarise <- do.call('rbind', quality_metrics_summarise)
+quality_metrics_summarise$scpop_zscore <- scpop_zscore
+
+quality_metrics_summarise
+
+```
+
+```{r ranking_best}
+
+best_integration <- quality_metrics_summarise %>%
+  filter(scpop_zscore == max(scpop_zscore)) %>%
+  select(run) %>%
+  pull()
+
+best_integration <- sub(paste0(project_name, "_"), "", best_integration)
+
+```
+
+::: {.alert .alert-error}
+**Under-construction:** Accordingly with scPOP z-score the best integration method is **`r best_integration`**.
+:::
+
+## Data Visualization
+
+### Clustering summary
+
+```{r clustering_summary, fig.height = 12, fig.width = 14}
+
+integration_umap$integrated.cca + integration_umap$integrated.rpca + integration_umap$harmony + integration_umap$integrated.mnn +
+  plot_layout(ncol = 2)
+
+```
+
+```{r lisi_calculation}
+
+lisi_calculation <- function(seurat_object, input_integration_method, batch_method) {
+  
+    data_tmp <- Embeddings(
+      object = seurat_object, reduction = batch_method)
+    
+    lisi_result <- lisi::compute_lisi(
+      data_tmp, 
+      seurat_object@meta.data, 
+      c('batch','sctype'),
+      perplexity = 150
+    )
+
+    lisi_result <- lisi_result %>%
+      tibble::rownames_to_column(var = "barcode") %>%
+      tidyr::pivot_longer(
+        !barcode, names_to = "lisi", values_to = "score") %>%
+      mutate(
+        cell_type = cell_type,
+        lisi = case_when(
+          lisi == "batch" ~ "iLISI",
+          lisi == "sctype" ~ "cLISI"
+        )
+      )
+    
+    lisi_result <- merge(
+      lisi_result,
+      seurat_object@meta.data[, c("barcode", "sctype")],
+      by = "barcode"
+    )
+    
+    lisi_result
+
+}
+
+```
+
+### LISI scores
+
+```{r lisi_harmoney_plot, fig.height = 30}
+
+lisi_harmony_result <- lisi_calculation(
+  seurat_object = seurat_object,
+  input_integration_method = input_integration_method,
+  batch_method = "harmony"
+  )
+
+# Plotting LISI scores per cell
+ggplot(lisi_harmony_result, aes(x = score)) +
+  geom_density() + 
+  labs(title = "Harmony") +
+  facet_wrap(sctype ~ lisi, scales = 'free', ncol = 2) +
+  theme_classic() +
+  theme(
+    title = element_text(size = 20),
+    axis.text = element_text(size = 12),
+    strip.text = element_text(size = 16)
+    )
+
+```
+
+```{r lisi_best_plot, fig.height = 30}
+
+lisi_best_result <- lisi_calculation(
+  seurat_object = seurat_object,
+  input_integration_method = input_integration_method,
+  batch_method = best_integration
+  )
+
+# Plotting LISI scores per cell
+ggplot(lisi_best_result, aes(x = score)) +
+  geom_density() + 
+  labs(title = best_integration) +
+  facet_wrap(sctype ~ lisi, scales = 'free', ncol = 2) +
+  theme_classic() +
+  theme(
+    title = element_text(size = 20),
+    axis.text = element_text(size = 12),
+    strip.text = element_text(size = 16)
+    )
+
+```
+
+## Saving BC evaluation data.frame
 
 ```{r object_dump}
 
+if(input_auto_selection) {
+  
+  write_lines(best_integration, "./data/batch_method.selected.txt")
+  
+}
+
 if(auto_save) {
   
-  saveRDS(all_markers, file = paste0('data/', project_name, '_MODULE_NAME.RDS'))
+  saveRDS(quality_metrics_summarise, file = paste0('data/', project_name, '_batch_table.RDS'))
   
 }
 

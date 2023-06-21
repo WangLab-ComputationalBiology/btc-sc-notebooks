@@ -197,14 +197,25 @@ seurat_meta_matrix <- seurat_to_heatmap %>%
   tibble::column_to_rownames(var = "barcode") %>%
   select(!!colnames(seurat_object@meta.data)[column_indexes])
 
+seurat_meta_matrix <- seurat_meta_matrix %>%
+  t()
+
+seurat_meta_rescaled <- scales::rescale(
+  seurat_meta_matrix, to = c(-2, 2))
+
+# Meta-program heatmap
 heat_plot <- pheatmap::pheatmap(
-  t(seurat_meta_matrix), 
+  seurat_meta_rescaled, 
   annotation_col = seurat_annotation_bar,
-  scale = 'column',
+  scale = 'none',
+  color = colorRampPalette(c("blue", "white", "red"))(50),
+  breaks = seq(-2, 2, length.out = 51),
   cluster_cols = FALSE,
   cutree_rows = 5,
   show_colnames = FALSE
   )
+
+heat_plot
 
 ```
 

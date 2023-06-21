@@ -8,6 +8,10 @@ if(!require("HGNChelper")) {
   install.packages("HGNChelper", Ncpus = 8, repos = 'http://cran.us.r-project.org', clean = TRUE)  
 }
 
+if(!require("DoubletFinder")) {
+  install.packages("DoubletFinder", Ncpus = 8, repos = 'http://cran.us.r-project.org', clean = TRUE)  
+}
+
 # Getting run work directory
 here <- getwd()
 

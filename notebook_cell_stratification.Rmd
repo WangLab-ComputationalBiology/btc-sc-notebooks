@@ -241,6 +241,10 @@ seurat_cluster_composition <- seurat_cluster_composition %>%
       )
   )
 
+```
+
+```{r enrichment_plot}
+
 # Enrichment Plot
 ggplot(seurat_cluster_composition, 
        aes(x = patient_id, y = seurat_clusters, color = hyper_p_label, size = hyper_p_log)) +
@@ -254,6 +258,7 @@ ggplot(seurat_cluster_composition,
   )
 
 ```
+
 ### Sample contributions (%)
 
 ```{r barplot_composition}
@@ -350,6 +355,7 @@ VlnPlot(
   )
 
 ```
+## Sampling cells
 
 ```{r sampling_per_clusters}
 
@@ -505,7 +511,6 @@ infercnv_genes <- infercnv_genes %>%
   tibble::column_to_rownames(var = "symbol")
 
 ```
-
 
 ```{r infer_cnv_run}
 
