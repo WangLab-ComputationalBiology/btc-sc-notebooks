@@ -15,6 +15,8 @@ params:
   project_object: './data/Test_nonMalignant_batch_object.RDS'
   input_target_variables: 'batch'
   input_integration_method: 'all'
+  input_step_name = 'nonMalignant'
+  input_lisi_variables: 'cLISI;iLISI'
   input_auto_selection: !r TRUE
   thr_npc: 'auto' 
   thr_resolution: 0.25
@@ -39,7 +41,10 @@ project_object <- params$project_object
 # Inputs and thresholds
 input_target_variables <- params$input_target_variables
 input_integration_method <- params$input_integration_method
+input_step_name <- params$input_step_name
 input_auto_selection <- params$input_auto_selection
+input_lisi_variables <- strsplit(
+  params$input_lisi_variables, split = ';')[[1]]
 
 thr_resolution <- params$thr_resolution
 thr_npc <- params$thr_npc
@@ -184,31 +189,37 @@ table(seurat_object@meta.data[, input_target_variables])
 ```{r kbet_mean_calculation}
 
 kbet_calcution <- function(seurat_object, batch_method) {
-
-    kbet_list <- sapply(unique(seurat_object$seurat_clusters), function(cluster_id) {
-      
-      seurat_tmp <- subset(seurat_object, subset = seurat_clusters == cluster_id)
-      data_tmp <- Embeddings(
-        object = seurat_tmp, reduction = batch_method)
-      batch_tmp <- seurat_tmp@meta.data$batch
-      
-      kBET_tmp <- kBET(df = data_tmp, batch = batch_tmp, plot=FALSE)
-      kBET_tmp$summary$kBET.observed[1]
-
+  
+  kbet_list <- sapply(unique(seurat_object$seurat_clusters), function(cluster_id) {
+    
+    seurat_tmp <- subset(seurat_object, subset = seurat_clusters == cluster_id)
+    data_tmp <- Embeddings(
+      object = seurat_tmp, reduction = batch_method)
+    batch_tmp <- seurat_tmp@meta.data$batch
+    
+    observed <- tryCatch(
+      {
+        kBET_tmp <- kBET(df = data_tmp, batch = batch_tmp, plot = FALSE)
+        return(kBET_tmp$summary$kBET.observed[1])
+      }, error = function(e) {
+        return(0)
       }
     )
     
-    mean_kBET <- sum(kbet_list)/length(unique(seurat_object$seurat_clusters))
+    observed
+    
+    }
+  )
+
+  mean_kBET <- sum(kbet_list)/length(unique(seurat_object$seurat_clusters))
 
 }
 
 ```
 
-
 ```{r evaluation_quality_metrics}
 
 quality_metrics_summarise <- list()
-integration_umap <- list()
 
 for (batch_method in integration_method_vector) {
   
@@ -233,24 +244,13 @@ for (batch_method in integration_method_vector) {
   # Running UMAP reduction
   seurat_object <- RunUMAP(
     object = seurat_object,
+    reduction.key = "umap_",
     reduction = batch_method, 
     dims = 1:thr_npc,
+    reduction.name = paste0("umap_", batch_method),
     seed.use = random_seed
   )
 
-  # Storing UMAP
-  integration_umap[[batch_method]] <- DimPlot(
-    seurat_object, 
-    reduction = "umap",
-    group.by = input_target_variables,
-    raster = FALSE,
-  ) +
-    labs(title = batch_method) +
-  theme(
-    legend.position = 'top',
-    legend.justification = 'center'
-  )
-  
   # Retrieving embeddings from batch method
   batch_method_embeddings <- Embeddings(
     object = seurat_object, reduction = batch_method
@@ -270,8 +270,12 @@ for (batch_method in integration_method_vector) {
   
 }
 
-scpop_zscore <- calc_sumZscore(
-  quality_metrics_summarise, 'batch')
+scpop_zscore <- scpop_zscore <- calc_sumZscore(
+  lapply(names(quality_metrics_summarise), function(id_method) {
+    quality_metrics_summarise[[id_method]][1:9]
+  }),
+  'batch'
+  )
 
 ```
 
@@ -297,33 +301,84 @@ best_integration <- sub(paste0(project_name, "_"), "", best_integration)
 
 ```
 
-::: {.alert .alert-error}
-**Under-construction:** Accordingly with scPOP z-score the best integration method is **`r best_integration`**.
+::: {.alert .alert-warning}
+Under-construction: Accordingly with scPOP z-score the best integration method is **`r best_integration`**.
 :::
 
 ## Data Visualization
 
-### Clustering summary
+### Integration summary
 
-```{r clustering_summary, fig.height = 12, fig.width = 14}
+```{r integration_summary, fig.height = 12, fig.width = 14}
+
+integration_umap <- list()
+
+for(batch_method in integration_method_vector) {
+  
+  # Storing UMAP
+  integration_umap[[batch_method]] <- DimPlot(
+    seurat_object, 
+    reduction = paste0("umap_", batch_method),
+    group.by = 'batch',
+    raster = FALSE,
+  ) +
+    labs(title = batch_method) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+}
 
 integration_umap$integrated.cca + integration_umap$integrated.rpca + integration_umap$harmony + integration_umap$integrated.mnn +
   plot_layout(ncol = 2)
 
 ```
 
+### Clustering summary
+
+```{r clustering_summary, fig.height = 12, fig.width = 14}
+
+clustering_umap <- list()
+
+for(batch_method in integration_method_vector) {
+  
+  # Storing UMAP
+  clustering_umap[[batch_method]] <- DimPlot(
+    seurat_object, 
+    reduction = paste0("umap_", batch_method),
+    group.by = paste0(batch_method, "_cluster"),
+    raster = FALSE,
+  ) +
+    labs(title = batch_method) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+}
+
+clustering_umap$integrated.cca + clustering_umap$integrated.rpca + clustering_umap$harmony + clustering_umap$integrated.mnn +
+  plot_layout(ncol = 2)
+
+```
+
 ```{r lisi_calculation}
 
-lisi_calculation <- function(seurat_object, input_integration_method, batch_method) {
+lisi_calculation <- function(
+    seurat_object, input_integration_method, batch_method) {
   
     data_tmp <- Embeddings(
-      object = seurat_object, reduction = batch_method)
+        object = seurat_object, reduction = batch_method)
+    
+    seurat_object@meta.data <- seurat_object@meta.data %>%
+      mutate(
+        cluster_and_cell = paste0(sctype, "_-_", seurat_clusters)
+      )
     
     lisi_result <- lisi::compute_lisi(
       data_tmp, 
       seurat_object@meta.data, 
-      c('batch','sctype'),
-      perplexity = 150
+      c('batch', 'sctype', 'seurat_clusters', 'cluster_and_cell', paste0(batch_method, '_cluster')),
+      perplexity = 30
     )
 
     lisi_result <- lisi_result %>%
@@ -331,16 +386,19 @@ lisi_calculation <- function(seurat_object, input_integration_method, batch_meth
       tidyr::pivot_longer(
         !barcode, names_to = "lisi", values_to = "score") %>%
       mutate(
-        cell_type = cell_type,
         lisi = case_when(
           lisi == "batch" ~ "iLISI",
-          lisi == "sctype" ~ "cLISI"
+          lisi == "sctype" ~ "cLISI",
+          lisi == "seurat_clusters" ~ "ucLISI",
+          lisi == "cluster_and_cell" ~ "ccLISI",
+          lisi == paste0(batch_method, '_cluster') ~ "bcLISI"
         )
       )
     
     lisi_result <- merge(
       lisi_result,
-      seurat_object@meta.data[, c("barcode", "sctype")],
+      seurat_object@meta.data[
+        , c("barcode", "seurat_clusters", "sctype", "cluster_and_cell", paste0(batch_method, '_cluster'))],
       by = "barcode"
     )
     
@@ -360,8 +418,12 @@ lisi_harmony_result <- lisi_calculation(
   batch_method = "harmony"
   )
 
+# Subsetting display
+lisi_harmony_subset <- lisi_harmony_result %>%
+  filter(lisi %in% input_lisi_variables)
+
 # Plotting LISI scores per cell
-ggplot(lisi_harmony_result, aes(x = score)) +
+ggplot(lisi_harmony_subset, aes(x = score)) +
   geom_density() + 
   labs(title = "Harmony") +
   facet_wrap(sctype ~ lisi, scales = 'free', ncol = 2) +
@@ -382,8 +444,12 @@ lisi_best_result <- lisi_calculation(
   batch_method = best_integration
   )
 
+# Subsetting display
+lisi_best_subset <- lisi_best_result %>%
+  filter(lisi %in% input_lisi_variables)
+
 # Plotting LISI scores per cell
-ggplot(lisi_best_result, aes(x = score)) +
+ggplot(lisi_best_subset, aes(x = score)) +
   geom_density() + 
   labs(title = best_integration) +
   facet_wrap(sctype ~ lisi, scales = 'free', ncol = 2) +

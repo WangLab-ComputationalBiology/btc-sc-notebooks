@@ -18,38 +18,42 @@ here <- getwd()
 # Pipeline steps
 main_normalize <- TRUE
 main_clustering <- TRUE
+main_doublet <- TRUE
 cell_stratification <- TRUE
 cell_annotation <- TRUE
 
 # Non-malignant
 normal_reduction <- TRUE
-batch_correction <- TRUE
+normal_batch_correction <- TRUE
+normal_batch_assessement <- TRUE
 normal_cluster <- TRUE
+normal_doublet <- TRUE
 normal_deg <- TRUE
 
 # Malignant
 malignant_reduction <- TRUE
 malignant_cluster <- TRUE
+malignant_doublet <- TRUE
 malignant_deg <- TRUE
 malignant_programs <- TRUE
 
 # Command singularity
 # singularity exec -B /rsrch6/home/genomic_med/affaustino/Projects/btc-scrna-pipeline/notebook/ scpackages_1.1.sif /usr/bin/sh
 
-# Step X - Description
+# Step X - main Merging samples
 # Output: Test_normalize_object.RDS
 if(main_normalize) {
   rmarkdown::render(
       "notebook_normalize.Rmd",
       params = list(
         input_qc_approved = "./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_ASCITES_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45P_ASCITES_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45N_INFRACOLIC_OMENTUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45P_RIGHT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45P_INFRACOLIC_OMENTUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45P_BOWEL_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45N_RIGHT_ADNEXA_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_BOWEL_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_BOWEL_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-022_S1_CD45P_RIGHT_ADNEXA_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_INFRACOLIC_OMENTUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_PELVIC_PERITONEUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_RIGHT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_LEFT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_LEFT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_LEFT_UPPER_QUADRANT_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_RIGHT_UPPER_QUADRANT_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_RIGHT_UPPER_QUADRANT_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45P_RIGHT_OVARY_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-009_S1_CD45N_INFRACOLIC_OMENTUM_seurat_object.RDS;./dev/data/normalize/SPECTRUM-OV-065_S1_CD45N_RIGHT_FALLOPIAN_TUBE_seurat_object.RDS"
-      ),      
+      ),
       output_dir = here,
       output_file = "Test_normalize_report.html"
       )
 }
 
-# Step X - Description
+# Step X - main Cluster cells
 # Output: Test_main_cluster_object.RDS
 if(main_clustering) {
   rmarkdown::render(
@@ -60,10 +64,24 @@ if(main_clustering) {
       ),
       output_dir = here,
       output_file = "Test_cluster_report.html"
-      )           
+      )
 }
 
-# Step X - Description
+# Step X - main Doublets cells
+# Output: Test_main_doublet_table.RDS
+if(main_doublet) {
+  rmarkdown::render(
+      "notebook_doublet_detection.Rmd",
+      params = list(
+          project_object = "./data/Test_main_cluster_object.RDS",
+          input_step_name = "main"
+        ),
+      output_dir = here,
+      output_file = "Test_main_doublet_report.html"
+      )
+}
+
+# Step X - main Stratification
 # Output: Test_stratification_object.RDS, Test_nonMalignant_stratification_object.RDS, Test_Malignant_stratification_object.RDS
 if(cell_stratification) {
   rmarkdown::render(
@@ -75,12 +93,12 @@ if(cell_stratification) {
       ),
     output_dir = here,
       output_file = "Test_stratification_report.html"
-    )           
+    )
 }
 
 ########### nonMalignant ###########
 
-# Step X - Description
+# Step X - Cell Annotation
 # Output: Test_cell_annotation.RDS
 if(cell_annotation) {
   rmarkdown::render(
@@ -90,10 +108,10 @@ if(cell_annotation) {
       ),
       output_dir = here,
       output_file = "Test_annotation_report.html"
-      )           
+      )
 }
 
-# Step X - Description
+# Step X - nonMalignant Reduction cells
 # Output: Test_nonMalignant_reduction_object.RDS
 if(normal_reduction) {
   rmarkdown::render(
@@ -104,12 +122,12 @@ if(normal_reduction) {
         ),
       output_dir = here,
       output_file = "Test_nonmalignant_dimensionality_report.html"
-      )           
+      )
 }
 
-# Step X - Description
+# Step X - nonMalignant Batch correction
 # Output: Test_nonMalignant_batch_object.RDS
-if(batch_correction) {
+if(normal_batch_correction) {
   rmarkdown::render(
     "notebook_batch_correction.Rmd",
     params = list(
@@ -119,17 +137,30 @@ if(batch_correction) {
       ),
     output_dir = here,
     output_file = "Test_nonmalignant_batch_report.html"
-  )         
+  )
 }
 
-# Step X - Cluster nonMalignant cells
+# Step X - nonMalignant Batch correction
+# Output: Test_nonMalignant_batch_annotation.RDS
+if(normal_batch_assessement) {
+  rmarkdown::render(
+    "notebook_batch_evaluation.Rmd",
+    params = list(
+          project_object = "./data/Test_nonMalignant_batch_object.RDS",
+          input_step_name = "nonMalignant"
+      ),
+    output_dir = here,
+    output_file = "Test_nonmalignant_batch_assessment_report.html"
+  )
+}
+
+# Step X - nonMalignant Cluster cells
 # Output: Test_nonMalignant_cluster_object.RDS
 if(normal_cluster) {
   rmarkdown::render(
       "notebook_cell_clustering.Rmd",
       params = list(
           project_object = "./data/Test_nonMalignant_batch_object.RDS",
-          input_integration_method = "harmony",
           input_step_name = "nonMalignant"
         ),
       output_dir = here,
@@ -137,7 +168,21 @@ if(normal_cluster) {
       )
 }
 
-# Step X - Description
+# Step X - nonMalignant Doublets cells
+# Output: Test_nonMalignant_doublet_annotation.RDS
+if(normal_doublet) {
+  rmarkdown::render(
+      "notebook_doublet_detection.Rmd",
+      params = list(
+          project_object = "./data/Test_nonMalignant_cluster_object.RDS",
+          input_step_name = "nonMalignant"
+        ),
+      output_dir = here,
+      output_file = "Test_nonmalignant_doublet_report.html"
+      )
+}
+
+# Step X - nonMalignant DEG analysis
 # Output: Test_nonMalignant_deg_object.RDS
 if(normal_deg) {
   rmarkdown::render(
@@ -153,7 +198,7 @@ if(normal_deg) {
 
 ########### Malignant ###########
 
-# Step X - Description
+# Step X - Malignant Reduction cells
 # Output: Test_Malignant_reduction_object.RDS
 if(malignant_reduction) {
   rmarkdown::render(
@@ -164,10 +209,10 @@ if(malignant_reduction) {
         ),
       output_dir = here,
       output_file = "Test_malignant_dimensionality_report.html"
-      )           
+      )
 }
 
-# Step X - Cluster nonMalignant cells
+# Step X - Malignant Cluster cells
 # Output: Test_Malignant_cluster_object.RDS
 if(malignant_cluster) {
   rmarkdown::render(
@@ -182,31 +227,43 @@ if(malignant_cluster) {
       )
 }
 
-# Step X - Description
+# Step X - Malignant Doublets cells
+# Output: Test_Malignant_doublet_table.RDS
+if(malignant_doublet) {
+  rmarkdown::render(
+      "notebook_doublet_detection.Rmd",
+      params = list(
+          project_object = "./data/Test_Malignant_cluster_object.RDS",
+          input_step_name = "main"
+        ),
+      output_dir = here,
+      output_file = "Test_main_doublet_report.html"
+      )
+}
+
+# Step X - Malignant DEG analysis
 # Output: Test_Malignant_deg_object.RDS
 if(malignant_deg) {
   rmarkdown::render(
     "notebook_differential_expression.Rmd",
     params = list(
       project_object = "./data/Test_Malignant_cluster_object.RDS",
-      input_step_name = "Malignant",
-      input_n_features = 5000,
-      thr_fold_change = 0.1
+      input_step_name = "Malignant"
     ),
     output_dir = here,
     output_file = "Test_malignant_deg_report.html"
   )
 }
 
-# Step X - Description
+# Step X - Malignant Meta-programs
 # Output: Test_Malignant_meta_object.RDS
-if(malignant_deg) {
+if(malignant_program) {
   rmarkdown::render(
     "notebook_meta_programs.Rmd",
     params = list(
       project_object = "./data/Test_Malignant_cluster_object.RDS",
       input_cell_category = "Malignant",
-      input_step_name = "Malignant",
+      input_step_name = "Malignant"
     ),
     output_dir = here,
     output_file = "Test_malignant_meta_report.html"
