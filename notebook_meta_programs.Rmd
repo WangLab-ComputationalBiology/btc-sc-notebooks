@@ -1,5 +1,5 @@
 ---
-title: "MODULE NAME"
+title: "Module - Meta-program"
 author: "BTC Pipeline"
 date: "`r Sys.time()`"
 output:
@@ -19,9 +19,10 @@ params:
   input_heatmap_annotation: 'source_name;seurat_clusters'
   input_step_name: 'main'
   n_threads: 8
+  n_memory: 16
   workdir: !r here::here()  
   timestamp: !r Sys.Date()
-  auto_save: TRUE
+  auto_save: !r TRUE
 ---
 
 ------------------------------------------------------------------------
@@ -44,6 +45,8 @@ input_heatmap_annotation <- strsplit(
 # Optional parameters
 
 # Dataflow/Computational parameters
+n_threads <- params$n_threads
+n_memory <- params$n_memory
 
 # Output parameters
 work_directory <- params$workdir
@@ -127,7 +130,7 @@ meta_programs <- meta_programs_db %>%
 
 ## Clustering summary
 
-```{r clustering_summary}
+```{r clustering_summary, fig.height = 12, fig.width = 14}
 
 DimPlot(
     seurat_object, 
@@ -185,7 +188,7 @@ if(length(meta_programs) > 1) {
 
 ## Ploting Meta-programs heatmap
 
-```{r meta_heatmap}
+```{r meta_heatmap, fig.height = 16, fig.width = 12}
 
 # Preparing matrix and annotation
 seurat_to_heatmap <- seurat_object@meta.data %>%

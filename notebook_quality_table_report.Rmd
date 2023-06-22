@@ -11,10 +11,12 @@ output:
     self_contained: true
 params:
   project_name: 'Test'
-  input_metrics_report: 'path/to/metrics_report'
-  workdir: 'path/to/work_directory'
+  input_metrics_report: './data/Test_metrics_report.csv'
+  n_threads: 8
+  n_memory: 16
+  workdir: !r here::here()
   timestamp: !r Sys.Date()
-  auto_save: !r TRUE
+  auto_save: TRUE
 ---
 
 
@@ -24,9 +26,14 @@ params:
 
 # Project parameters 
 project_name <- params$project_name
-input_metrics_report <- strsplit(params$input_metrics_report, split = ';')[[1]]
+input_metrics_report <- strsplit(
+  params$input_metrics_report, split = ';')[[1]]
 
-# Script-related parameters
+# Dataflow/Computational parameters
+n_threads <- params$n_threads
+n_memory <- params$n_memory
+
+# Output parameters
 work_directory <- params$workdir
 timestamp <- params$timestamp
 auto_save <- params$auto_save

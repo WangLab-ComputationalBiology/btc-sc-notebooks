@@ -6,6 +6,8 @@
 
 *.html
 *.zip
+*.tar.gz
+*.gz
 
 dev/
 data/

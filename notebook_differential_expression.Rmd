@@ -15,15 +15,14 @@ params:
   project_name: 'Test'
   project_object: './data/Test_nonMalignant_cluster_object.RDS'
   input_deg_method: 'wilcox'
-  input_integration_method: 'fastmnn'
   input_top_deg: 20
   input_step_name: "main"
   input_n_features: 2000
   thr_fold_change: 0.25
   thr_min_percentage: 0.1
   opt_hgv_filter: TRUE
-  n_memory: 16
   n_threads: 8
+  n_memory: 16
   workdir: !r here::here()
   timestamp: !r Sys.Date()
   auto_save: TRUE
@@ -43,7 +42,6 @@ project_object <- params$project_object
 input_deg_method <- params$input_deg_method
 input_top_deg <- params$input_top_deg
 input_step_name <- params$input_step_name
-input_integration_method <- params$input_integration_method
 input_n_features <- params$input_n_features
 
 thr_fold_change <- params$thr_fold_change
@@ -126,11 +124,10 @@ set.seed(random_seed)
 
 # Checking variables and metadata columns
 meta_columns <- colnames(seurat_object@meta.data)
-input_integration_method <- intersect(input_integration_method, meta_columns)
 
 # Checking annotation
 boolean_annotation <- FALSE
-if("scytype" %in% meta_columns) {
+if(input_step_name == "nonMalignant") {
   boolean_annotation <- TRUE
 }
 ```
@@ -165,12 +162,6 @@ DimPlot(
     legend.position = 'top',
     legend.justification = 'center'
   )
-
-```
-
-```{r cell_annot_barplot, fig.height = 12, fig.width = 14, eval = boolean_annotation}
-
-
 
 ```
 
@@ -277,13 +268,13 @@ main_dotplot
 
 if(auto_save) {
 
-  ggsave(plot = main_dotplot, filename = paste0('figures/deg/BUBBLEPLOT_', input_step_name, '.pdf'))
+  ggsave(plot = main_dotplot, filename = paste0('figures/deg/bubbleplot_', input_step_name, '.pdf'))
 
 }
 
 ```
 
-```{r annot_bubble_plot, fig.height = 45, fig.width = 12}
+```{r annot_bubble_plot, fig.height = 45, fig.width = 12, eval = boolean_annotation}
 
 annot_dotplot <- DotPlot(seurat_object, features = top_degs_per_cluster, group.by = "sctype") +
   coord_flip() +
@@ -293,13 +284,13 @@ annot_dotplot <- DotPlot(seurat_object, features = top_degs_per_cluster, group.b
     legend.position = 'top'
   )
 
-annot_dotplot
-
 if(auto_save) {
 
-  ggsave(plot = annot_dotplot, filename = paste0('figures/deg/BUBBLEPLOT_ANNOTATION_', input_step_name, '.pdf'))
+  ggsave(plot = annot_dotplot, filename = paste0('figures/deg/bubbleplot_annotation_', input_step_name, '.pdf'))
 
 }
+
+annot_dotplot
 
 ```
 

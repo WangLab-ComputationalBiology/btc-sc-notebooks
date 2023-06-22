@@ -21,24 +21,24 @@ if(!require("scPOP")) {
 here <- getwd()
 
 # Pipeline steps
-main_normalize <- TRUE
-main_clustering <- TRUE
-main_doublet <- TRUE
-cell_stratification <- TRUE
-cell_annotation <- TRUE
+main_normalize <- FALSE
+main_clustering <- FALSE
+main_doublet <- FALSE
+cell_stratification <- FALSE
+cell_annotation <- FALSE
 
 # Non-malignant
-normal_reduction <- TRUE
-normal_batch_correction <- TRUE
-normal_batch_assessement <- TRUE
-normal_cluster <- TRUE
-normal_doublet <- TRUE
-normal_deg <- TRUE
+normal_reduction <- FALSE
+normal_batch_correction <- FALSE
+normal_batch_assessement <- FALSE
+normal_cluster <- FALSE
+normal_doublet <- FALSE
+normal_deg <- FALSE
 
 # Malignant
-malignant_reduction <- TRUE
-malignant_cluster <- TRUE
-malignant_doublet <- TRUE
+malignant_reduction <- FALSE
+malignant_cluster <- FALSE
+malignant_doublet <- FALSE
 malignant_deg <- TRUE
 malignant_programs <- TRUE
 
@@ -137,7 +137,6 @@ if(normal_batch_correction) {
     "notebook_batch_correction.Rmd",
     params = list(
           project_object = "./data/Test_nonMalignant_reduction_object.RDS",
-          input_integration_method = "harmony",
           input_step_name = "nonMalignant"
       ),
     output_dir = here,
@@ -262,7 +261,7 @@ if(malignant_deg) {
 
 # Step X - Malignant Meta-programs
 # Output: Test_Malignant_meta_object.RDS
-if(malignant_program) {
+if(malignant_programs) {
   rmarkdown::render(
     "notebook_meta_programs.Rmd",
     params = list(

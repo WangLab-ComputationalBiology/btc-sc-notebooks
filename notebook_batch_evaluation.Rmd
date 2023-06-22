@@ -15,7 +15,7 @@ params:
   project_object: './data/Test_nonMalignant_batch_object.RDS'
   input_target_variables: 'batch'
   input_integration_method: 'all'
-  input_step_name = 'nonMalignant'
+  input_step_name: 'nonMalignant'
   input_lisi_variables: 'cLISI;iLISI'
   input_auto_selection: !r TRUE
   thr_npc: 'auto' 

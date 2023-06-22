@@ -23,6 +23,8 @@ params:
   thr_n_feature_rna_max: 7500
   thr_percent_mito: 25
   thr_n_observed_cells: 300
+  n_threads: 8
+  n_memory: 16
   workdir: 'path/to/work_directory'
   timestamp: !r Sys.Date()
   auto_save: !r TRUE
@@ -52,7 +54,11 @@ thr_n_feature_rna_max <- params$thr_n_feature_rna_max
 thr_percent_mito <- params$thr_percent_mito
 thr_n_observed_cells <- params$thr_n_observed_cells
 
-# Script-related parameters
+# Dataflow/Computational parameters
+n_threads <- params$n_threads
+n_memory <- params$n_memory
+
+# Output parameters
 work_directory <- params$workdir
 timestamp <- params$timestamp
 auto_save <- params$auto_save

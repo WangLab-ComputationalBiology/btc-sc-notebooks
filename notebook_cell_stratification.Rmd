@@ -20,6 +20,7 @@ params:
   thr_cluster_size: 1000
   thr_consensus_score: 2
   n_threads: 8
+  n_memory: 16
   workdir: !r here::here()
   timestamp: !r Sys.Date()
   auto_save: TRUE
@@ -46,6 +47,7 @@ thr_consensus_score <- params$thr_consensus_score
 
 # Dataflow/Computational parameters
 n_threads <- params$n_threads
+n_memory <- params$n_memory
 
 # Output parameters
 work_directory <- params$workdir

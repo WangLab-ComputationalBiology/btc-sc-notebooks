@@ -17,6 +17,7 @@ params:
   input_cell_markers_db: './cell_markers_database.csv'
   input_annotation_level: 'Major cells'
   n_threads: 8
+  n_memory: 16
   workdir: !r here::here()
   timestamp: !r Sys.Date()
   auto_save: TRUE
@@ -38,6 +39,8 @@ input_annotation_level <- params$input_annotation_level
 # Optional parameters
 
 # Dataflow/Computational parameters
+n_threads <- params$n_threads
+n_memory <- params$n_memory
 
 # Output parameters
 work_directory <- params$workdir
@@ -86,7 +89,7 @@ if(!dir.exists(work_directory)) {
   dir.create(work_directory, recursive = T)
 }
 
-for(sub_directory in c('data', 'data/annotation')) {
+for(sub_directory in c('data', 'figures', 'figures/annotation')) {
   dir.create(paste0(work_directory, '/', sub_directory))
 }
 
@@ -308,7 +311,7 @@ ggplot(seurat_cluster_composition, aes(x = seurat_clusters, y = percentage, fill
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('data/', project_name, '_cell_annotation.RDS'))
+  saveRDS(seurat_object, file = paste0('data/', project_name, '_annotation_object.RDS'))
   
 }
 
