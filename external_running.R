@@ -9,8 +9,13 @@ if(!require("HGNChelper")) {
 }
 
 if(!require("DoubletFinder")) {
-  install.packages("DoubletFinder", Ncpus = 8, repos = 'http://cran.us.r-project.org', clean = TRUE)  
+  remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
 }
+
+if(!require("scPOP")) {
+  devtools::install_github('vinay-swamy/scPOP')
+}
+
 
 # Getting run work directory
 here <- getwd()
