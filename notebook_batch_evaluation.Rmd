@@ -13,11 +13,11 @@ output:
 params:
   project_name: 'Test'
   project_object: './data/Test_nonMalignant_batch_object.RDS'
+  input_integration_evaluate: 'all'
   input_target_variables: 'batch'
-  input_integration_method: 'all'
-  input_step_name: 'nonMalignant'
+  input_batch_step: 'nonMalignant'
   input_lisi_variables: 'cLISI;iLISI'
-  input_auto_selection: !r TRUE
+  input_auto_selection: TRUE
   thr_npc: 'auto' 
   thr_resolution: 0.25
   thr_cell_proportion: 0.30
@@ -25,7 +25,7 @@ params:
   n_threads: 8
   workdir: !r here::here()
   timestamp: !r Sys.Date()
-  auto_save: !r TRUE
+  auto_save: TRUE
 ---
 
 ------------------------------------------------------------------------
@@ -39,9 +39,9 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Inputs and thresholds
+input_integration_evaluate <- params$input_integration_evaluate
 input_target_variables <- params$input_target_variables
-input_integration_method <- params$input_integration_method
-input_step_name <- params$input_step_name
+input_batch_step <- params$input_batch_step
 input_auto_selection <- params$input_auto_selection
 input_lisi_variables <- strsplit(
   params$input_lisi_variables, split = ';')[[1]]
@@ -137,7 +137,7 @@ options(future.globals.maxSize = n_memory*1024^3)
 
 # Batch method
 integration_method_vector <- 
-  switch(input_integration_method,
+  switch(input_integration_evaluate,
   'all' = c('integrated.cca', 'integrated.rpca', 'harmony', 'integrated.mnn'), 
   'cca' = 'cca',
   'rpca' = 'rpca',
@@ -364,7 +364,7 @@ clustering_umap$integrated.cca + clustering_umap$integrated.rpca + clustering_um
 ```{r lisi_calculation}
 
 lisi_calculation <- function(
-    seurat_object, input_integration_method, batch_method) {
+    seurat_object, input_integration_evaluate, batch_method) {
   
     data_tmp <- Embeddings(
         object = seurat_object, reduction = batch_method)
@@ -414,7 +414,7 @@ lisi_calculation <- function(
 
 lisi_harmony_result <- lisi_calculation(
   seurat_object = seurat_object,
-  input_integration_method = input_integration_method,
+  input_integration_evaluate = input_integration_evaluate,
   batch_method = "harmony"
   )
 
@@ -440,7 +440,7 @@ ggplot(lisi_harmony_subset, aes(x = score)) +
 
 lisi_best_result <- lisi_calculation(
   seurat_object = seurat_object,
-  input_integration_method = input_integration_method,
+  input_integration_evaluate = input_integration_evaluate,
   batch_method = best_integration
   )
 

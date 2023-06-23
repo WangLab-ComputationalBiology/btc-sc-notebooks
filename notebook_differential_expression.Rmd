@@ -16,7 +16,7 @@ params:
   project_object: './data/Test_nonMalignant_cluster_object.RDS'
   input_deg_method: 'wilcox'
   input_top_deg: 20
-  input_step_name: "main"
+  input_deg_step: "main"
   input_n_features: 2000
   thr_fold_change: 0.25
   thr_min_percentage: 0.1
@@ -41,7 +41,7 @@ project_object <- params$project_object
 # Inputs and thresholds
 input_deg_method <- params$input_deg_method
 input_top_deg <- params$input_top_deg
-input_step_name <- params$input_step_name
+input_deg_step <- params$input_deg_step
 input_n_features <- params$input_n_features
 
 thr_fold_change <- params$thr_fold_change
@@ -127,7 +127,7 @@ meta_columns <- colnames(seurat_object@meta.data)
 
 # Checking annotation
 boolean_annotation <- FALSE
-if(input_step_name == "nonMalignant") {
+if(input_deg_step == "nonMalignant") {
   boolean_annotation <- TRUE
 }
 ```
@@ -268,7 +268,7 @@ main_dotplot
 
 if(auto_save) {
 
-  ggsave(plot = main_dotplot, filename = paste0('figures/deg/bubbleplot_', input_step_name, '.pdf'))
+  ggsave(plot = main_dotplot, filename = paste0('figures/deg/bubbleplot_', input_deg_step, '.pdf'))
 
 }
 
@@ -286,7 +286,7 @@ annot_dotplot <- DotPlot(seurat_object, features = top_degs_per_cluster, group.b
 
 if(auto_save) {
 
-  ggsave(plot = annot_dotplot, filename = paste0('figures/deg/bubbleplot_annotation_', input_step_name, '.pdf'))
+  ggsave(plot = annot_dotplot, filename = paste0('figures/deg/bubbleplot_annotation_', input_deg_step, '.pdf'))
 
 }
 
@@ -300,7 +300,7 @@ annot_dotplot
 
 if(auto_save) {
   
-  saveRDS(all_markers, file = paste0('data/', project_name, "_", input_step_name, '_deg_table.RDS'))
+  saveRDS(all_markers, file = paste0('data/', project_name, "_", input_deg_step, '_deg_table.RDS'))
   
 }
 

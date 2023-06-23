@@ -16,8 +16,8 @@ params:
   project_object: './data/Test_normalize_object.RDS'
   input_features_plot: 'LYZ;CCL5;IL32;PTPRCAP;FCGR3A;PF4;PTPRC'
   input_group_plot: 'source_name;Sort'
-  input_integration_method: 'auto'
-  input_step_name: 'main'
+  input_integration_dimension: 'auto'
+  input_cluster_step: 'main'
   thr_quantile: 'q01'
   thr_npc: 'auto'
   thr_resolution: 0.25
@@ -40,12 +40,12 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Inputs and thresholds
-input_integration_method <- params$input_integration_method
+input_integration_dimension <- params$input_integration_dimension
 input_features_plot <- strsplit(
   params$input_features_plot, split = ';')[[1]]
 input_group_plot <- strsplit(
   params$input_group_plot, split = ';')[[1]]
-input_step_name <- params$input_step_name
+input_cluster_step <- params$input_cluster_step
 
 thr_npc <- params$thr_npc
 thr_resolution <- params$thr_resolution
@@ -168,7 +168,7 @@ integration_method <- function(
   
 }
 
-reduction_variable <- integration_method(method = input_integration_method)
+reduction_variable <- integration_method(method = input_integration_dimension)
 
 ```
 
@@ -409,7 +409,7 @@ if(length(input_group_plot) > 0) {
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('./data/', project_name, '_', input_step_name, '_cluster_object.RDS'))
+  saveRDS(seurat_object, file = paste0('./data/', project_name, '_', input_cluster_step, '_cluster_object.RDS'))
   
 }
 

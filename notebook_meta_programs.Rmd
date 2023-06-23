@@ -14,10 +14,10 @@ output:
 params:
   project_name: 'Test'
   project_object: './data/Test_Malignant_cluster_object.RDS'
-  input_meta_programs: 'meta_programs.csv'
+  input_meta_programs: 'meta_programs_database.csv'
   input_cell_category: 'Malignant'
   input_heatmap_annotation: 'source_name;seurat_clusters'
-  input_step_name: 'main'
+  input_meta_step: 'main'
   n_threads: 8
   n_memory: 16
   workdir: !r here::here()  
@@ -38,7 +38,7 @@ project_object <- params$project_object
 # Inputs and thresholds
 input_meta_programs <- params$input_meta_programs
 input_cell_category <- params$input_cell_category
-input_step_name <- params$input_step_name
+input_meta_step <- params$input_meta_step
 input_heatmap_annotation <- strsplit(
   params$input_heatmap_annotation, split = ';')[[1]]
 
@@ -245,7 +245,7 @@ save_pheatmap <-
   dev.off()
 }
 
-save_pheatmap(heat_plot, paste0('figures/meta/', project_name, '_', input_step_name,'_heatmap.pdf'))
+save_pheatmap(heat_plot, paste0('figures/meta/', project_name, '_', input_meta_step,'_heatmap.pdf'))
 
 ```
 
@@ -267,7 +267,7 @@ FeaturePlot(
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('data/', project_name, '_', input_step_name, '_meta_object.RDS'))
+  saveRDS(seurat_object, file = paste0('data/', project_name, '_', input_meta_step, '_meta_object.RDS'))
   
 }
 

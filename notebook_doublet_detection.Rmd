@@ -14,7 +14,7 @@ output:
 params:
   project_name: 'Test'
   project_object: './data/Test_main_cluster_object.RDS'
-  input_step_name: 'Malignant'
+  input_doublet_name: 'main'
   n_memory: 32
   n_threads: 8
   workdir: !r here::here()  
@@ -33,7 +33,7 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Inputs and thresholds
-input_step_name <- params$input_step_name
+input_doublet_name <- params$input_doublet_name
 
 # Optional parameters
 
@@ -288,7 +288,7 @@ DimPlot(
 
 if(auto_save) {
   
-  saveRDS(double_annotation, file = paste0('data/', project_name, '_', input_step_name, '_doublet_table.RDS'))
+  saveRDS(double_annotation, file = paste0('data/', project_name, '_', input_doublet_name, '_doublet_table.RDS'))
   
 }
 
