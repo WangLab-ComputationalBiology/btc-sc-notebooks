@@ -4,11 +4,11 @@ author: "BTC Pipeline"
 date: "`r Sys.time()`"
 output:
   html_document:
-    toc: true
-    toc_float: true
+    toc: TRUE
+    toc_float: TRUE
     toc_depth: 3
     code_folding: show
-    self_contained: true
+    self_contained: TRUE
 params:
   project_name: 'Test'
   sample_name: 'Sample_001'
@@ -27,7 +27,7 @@ params:
   n_memory: 16
   workdir: 'path/to/work_directory'
   timestamp: !r Sys.Date()
-  auto_save: !r TRUE
+  auto_save: TRUE
 ---
 
 ------------------------------------------------------------------------
