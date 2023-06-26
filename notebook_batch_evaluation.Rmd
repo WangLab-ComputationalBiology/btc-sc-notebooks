@@ -474,7 +474,7 @@ if(input_auto_selection) {
 
 if(auto_save) {
   
-  saveRDS(quality_metrics_summarise, file = paste0('data/', project_name, '_batch_table.RDS'))
+  saveRDS(quality_metrics_summarise, file = paste0('data/', project_name, '_evaluation_table.RDS'))
   
 }
 
