@@ -73,6 +73,11 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 library(Seurat)
+
+if(!require("HGNChelper")) {
+  install.packages("HGNChelper", Ncpus = 8, repos = 'http://cran.us.r-project.org', clean = TRUE)  
+}
+
 library(HGNChelper)
 
 # Load libraries and functions

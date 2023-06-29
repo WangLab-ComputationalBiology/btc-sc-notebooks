@@ -86,10 +86,15 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 library(Seurat)
-library(scPOP)
 library(kBET)
 library(lisi)
 library(patchwork)
+
+if(!require('scPOP')) {
+  devtools::install_github('vinay-swamy/scPOP')
+}
+
+library(scPOP)
 
 ```
 

@@ -84,6 +84,12 @@ library(SCEVAN)
 library(infercnv)
 library(annotables)
 
+if(!require("annotables")) {
+  devtools::install_github("stephenturner/annotables", repos = 'http://cran.us.r-project.org')
+}
+
+library(annotables)
+
 ```
 
 ## Folder structure
@@ -445,7 +451,7 @@ for(sample_prefix in names(scevan_sample_counts)) {
 ```{r scevan_output}
 
 if(dir.exists('output')) {
-  file.rename('output', 'data/scevan')  
+  file.rename('output', 'data/scevan')
 }
 
 ```

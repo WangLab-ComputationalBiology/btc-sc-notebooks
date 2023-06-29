@@ -73,8 +73,13 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 library(Seurat)
-library(DoubletFinder)
 library(DT)
+
+if(!require("DoubletFinder")) {
+  remotes::install_github('chris-mcginnis-ucsf/DoubletFinder')
+}
+
+library(DoubletFinder)
 
 ```
 
@@ -86,7 +91,7 @@ if(!dir.exists(work_directory)) {
   dir.create(work_directory, recursive = T)
 }
 
-for(sub_directory in c('data')) {
+for(sub_directory in c('data', 'figures', 'figures/doublet')) {
   dir.create(paste0(work_directory, '/', sub_directory))
 }
 

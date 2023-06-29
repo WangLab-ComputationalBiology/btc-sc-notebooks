@@ -16,7 +16,6 @@ if(!require("scPOP")) {
   devtools::install_github('vinay-swamy/scPOP')
 }
 
-
 # Getting run work directory
 here <- getwd()
 

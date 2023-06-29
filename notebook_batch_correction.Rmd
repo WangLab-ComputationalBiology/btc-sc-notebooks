@@ -16,7 +16,7 @@ params:
   project_object: './data/Test_nonMalignant_reduction_object.RDS'
   input_target_variables: 'batch'
   input_integration_method: 'all'
-  input_step_name: "main"
+  input_batch_step: "main"
   n_threads: 8
   n_memory: 16
   workdir: !r here::here()
@@ -38,7 +38,7 @@ project_object <- params$project_object
 input_integration_method <- params$input_integration_method
 input_target_variables <- strsplit(
   params$input_target_variables, split = ';')[[1]]
-input_step_name <- params$input_step_name
+input_batch_step <- params$input_batch_step
 
 # Optional parameters
 
@@ -185,7 +185,7 @@ seurat_object <- IntegrateLayers(
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('./data/', project_name, '_', input_step_name, '_batch_object.RDS'))
+  saveRDS(seurat_object, file = paste0('./data/', project_name, '_', input_batch_step, '_batch_object.RDS'))
   
 }
 

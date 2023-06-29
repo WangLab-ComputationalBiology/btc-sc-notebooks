@@ -86,7 +86,7 @@ if(!dir.exists(work_directory)) {
   dir.create(work_directory, recursive = T)
 }
 
-for(sub_directory in c('data', 'figures', 'figures/dimensionality_reduction')) {
+for(sub_directory in c('data', 'figures', 'figures/reduction')) {
   dir.create(paste0(work_directory, '/', sub_directory))
 }
 
