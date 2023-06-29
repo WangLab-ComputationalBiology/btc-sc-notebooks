@@ -155,8 +155,8 @@ integration_method <- function(
   
   # Programmatic choices
   if(method == 'auto') {
-    if(file.exists('./data/batch_method.selected.txt')) {
-      reduction_variable <- read_lines(file = "./data/batch_method.selected.txt")
+    if(file.exists('./batch_method.selected.txt')) {
+      reduction_variable <- read_lines(file = "./batch_method.selected.txt")
     } 
   }
   

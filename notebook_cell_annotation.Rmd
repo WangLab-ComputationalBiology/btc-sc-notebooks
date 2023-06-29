@@ -82,7 +82,7 @@ library(HGNChelper)
 
 # Load libraries and functions
 source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R"); 
-source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R")
+source("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R");
 
 ```
 
@@ -214,29 +214,29 @@ DimPlot(
 non_malignant_markers <- gene_list_db$gs_positive
 
 # Avoiding redundant markers
-non_malignant_markers_index <- names(non_malignant_markers) %in% colnames(seurat_object@meta.data)
-non_malignant_markers <- non_malignant_markers[non_malignant_markers_index]
+non_malignant_markers_index <- 
+  names(non_malignant_markers) %in% colnames(seurat_object@meta.data)
+non_malignant_markers_valid <- non_malignant_markers[!non_malignant_markers_index]
 
-if(length(non_malignant_markers) > 1) {
+if(length(non_malignant_markers_valid) > 1) {
   
-  for(cell_type in names(non_malignant_markers)) {
+  for(cell_type in names(non_malignant_markers_valid)) {
     seurat_object <- AddModuleScore(
     object = seurat_object,
     seed = random_seed,
-    features = non_malignant_markers[cell_type],
+    features = non_malignant_markers_valid[cell_type],
     name = cell_type
     )
   }
   
   # Removing seeds on Module name
-  column_indexes <- sapply(names(non_malignant_markers), function(column) {
+  column_indexes <- sapply(names(non_malignant_markers_valid), function(column) {
         grep(column, colnames(seurat_object@meta.data))
   })
   colnames(seurat_object@meta.data)[column_indexes] <-
     gsub("1$", "", colnames(seurat_object@meta.data)[column_indexes])
 
 }
-
 ```
 
 ### Feature Plot
@@ -272,23 +272,25 @@ seurat_cluster_composition <- seurat_object@meta.data %>%
   )
 
 seurat_cluster_composition <- seurat_cluster_composition %>%
-  group_by(seurat_clusters, sctype, total_cell_study) %>%
-  summarise(
-    n_cell_per_patient = n()
+  group_by(seurat_clusters) %>%
+  mutate(
+    total_cell_per_cluster = n()
   )
 
 seurat_cluster_composition <- seurat_cluster_composition %>%
   group_by(sctype) %>%
   mutate(
-    total_cell_per_patient = sum(n_cell_per_patient)
+    total_cell_per_type = n()
   )
+
+seurat_cluster_composition <- seurat_cluster_composition %>%
+  distinct(seurat_clusters, sctype, total_cell_study, total_cell_per_cluster, total_cell_per_type)
 
 # Cell percentage per cluster
 seurat_cluster_composition <- seurat_cluster_composition %>%
-  group_by(seurat_clusters) %>%
+  group_by(sctype) %>%
   mutate(
-    n_cell_per_cluster = sum(n_cell_per_patient),
-    percentage = round((n_cell_per_patient / n_cell_per_cluster) * 100, 2)
+    percentage = round(((total_cell_per_cluster * 100) / total_cell_per_type), digits = 2)
   )
 
 ```
@@ -297,13 +299,14 @@ seurat_cluster_composition <- seurat_cluster_composition %>%
 ```{r barplot_composition}
 
 # Boxplot
-ggplot(seurat_cluster_composition, aes(x = seurat_clusters, y = percentage, fill = sctype)) +
+ggplot(seurat_cluster_composition, aes(x = sctype, y = percentage, fill = seurat_clusters)) +
   geom_col() +
-  labs(x = "Seurat Clusters", y = "% of Cells", fill = "Cell annotation:") +
+  labs(x = "Cell annotation:", y = "% of Cells", fill = "Seurat Clusters") +
   theme_classic() +
   theme(
     legend.text = element_text(size = 14),
     legend.position = 'top',
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 0.9),
     axis.text = element_text(size = 18)
   )
 

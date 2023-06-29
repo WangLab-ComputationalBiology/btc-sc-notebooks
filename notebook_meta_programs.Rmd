@@ -186,7 +186,7 @@ if(length(meta_programs) > 1) {
 
 ```
 
-## Ploting Meta-programs heatmap
+## Plotting Meta-programs heatmap
 
 ```{r meta_heatmap, fig.height = 16, fig.width = 12}
 

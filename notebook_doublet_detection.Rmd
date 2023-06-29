@@ -267,6 +267,7 @@ ggplot(seurat_doublet_quantification,
   )
 
 ```
+
 ## Feature Plot
 
 ```{r}
