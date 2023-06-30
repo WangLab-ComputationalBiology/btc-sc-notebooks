@@ -14,7 +14,7 @@ output:
 params:
   project_name: 'Test'
   project_object: './data/Test_cell_annotation.RDS'
-  input_reduction_name: "main"
+  input_reduction_step: "main"
   thr_n_features: 2000
   n_threads: 8
   n_memory: 16
@@ -34,7 +34,7 @@ project_name <- params$project_name
 project_object <- params$project_object
 
 # Inputs and thresholds
-input_reduction_name <- params$input_reduction_name
+input_reduction_step <- params$input_reduction_step
 thr_n_features <- params$thr_n_features
 
 # Optional parameters
@@ -197,7 +197,7 @@ elbow_plot
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('./data/', project_name, '_', input_reduction_name, '_reduction_object.RDS'))
+  saveRDS(seurat_object, file = paste0('./data/', project_name, '_', input_reduction_step, '_reduction_object.RDS'))
   
 }
 
