@@ -6,8 +6,9 @@ output:
   html_document:
     toc: TRUE
     toc_float: TRUE
-    toc_depth: 3
+    toc_depth: 4
     code_folding: show
+    theme: united
     self_contained: TRUE
 params:
   project_name: 'Test'
