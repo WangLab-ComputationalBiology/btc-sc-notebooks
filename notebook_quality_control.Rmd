@@ -1,5 +1,5 @@
 ---
-title: "01 - Single-cell Quality Control"
+title: "Module - Single-cell Quality Control"
 author: "BTC Pipeline"
 date: "`r Sys.time()`"
 output:
