@@ -144,10 +144,10 @@ options(future.globals.maxSize = n_memory*1024^3)
 integration_method_vector <- 
   switch(input_integration_evaluate,
   'all' = c('integrated.cca', 'integrated.rpca', 'harmony', 'integrated.mnn'), 
-  'cca' = 'cca',
-  'rpca' = 'rpca',
+  'cca' = 'integrated.cca',
+  'rpca' = 'integrated.rpca',
   'harmony' = 'harmony',
-  'mnn' = 'mnn'
+  'mnn' = 'integrated.mnn'
 )
 
 integration_method_vector <- intersect(

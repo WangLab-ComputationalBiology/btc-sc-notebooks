@@ -219,7 +219,7 @@ umap_main <- DimPlot(
 
 if(auto_save) {
   
-  ggsave(plot = umap_main, filename = paste0('figures/clustered/UMAP_MAIN_', timestamp, '.pdf'))
+  ggsave(plot = umap_main, filename = paste0('figures/clustering/UMAP_MAIN_', timestamp, '.pdf'))
   
 }
 
@@ -340,7 +340,7 @@ umap_sample <- DimPlot(seurat_object, reduction = "umap", group.by = "sample_id"
 
 if(auto_save) {
 
-  ggsave(plot = umap_sample, filename = paste0('figures/clustered/UMAP_SAMPLE.pdf'))
+  ggsave(plot = umap_sample, filename = paste0('figures/clustering/UMAP_SAMPLE.pdf'))
 
 }
 
@@ -361,7 +361,7 @@ umap_group <- DimPlot(seurat_object, reduction = "umap", group.by = "batch", ras
 
 if(auto_save) {
 
-  ggsave(plot = umap_group, filename = paste0('figures/clustered/UMAP_BATCH.pdf'))
+  ggsave(plot = umap_group, filename = paste0('figures/clustering/UMAP_BATCH.pdf'))
 
 }
 
@@ -391,7 +391,7 @@ if(length(input_group_plot) > 0) {
           legend.justification = 'center'
           )
 
-          ggsave(plot = umap_temp, filename = paste0('figures/clustered/UMAP_GROUPED_', idx, '.pdf'))
+          ggsave(plot = umap_temp, filename = paste0('figures/clustering/UMAP_GROUPED_', idx, '.pdf'))
   
     }
   }
