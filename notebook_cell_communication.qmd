@@ -435,7 +435,3 @@ obj <- findcelltype(obj)
 obj@celltype
 
 ```
-
-```{r}
-
-```
