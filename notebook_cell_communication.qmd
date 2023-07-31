@@ -1,0 +1,441 @@
+---
+title: "Module - Cell communication"
+format:
+  html:
+    theme: cosmo
+    code-copy: true
+    code-fold: true
+    code-summary: "Show the code"
+    fig-align: center
+    fig-responsive: true
+    fig-width: 8
+    fig-height: 12
+    default-image-extension: svg
+execute: 
+  warning: false
+  error: true
+editor: visual
+params:
+  project_name: 'Test'
+  project_object: './data/Ovarian_nonMalignant_cluster_object.RDS'
+  input_model_organism: 'human'
+  n_threads: 8
+  n_memory: 16
+  fig-width: 10
+  workdir: "`!r here::here()`"
+  timestamp: "`!r Sys.Date()`"
+  auto_save: TRUE
+---
+
+# Project Name: `r params$project_name`
+
+```{r setup}
+#| echo: false
+
+# Project parameters 
+project_name <- params$project_name
+project_object <- params$project_object
+
+# Inputs and thresholds
+input_model_organism <- params$input_model_organism
+
+# Optional parameters
+
+# Dataflow/Computational parameters
+n_threads <- params$n_threads
+n_memory <- params$n_memory
+
+# Output parameters
+work_directory <- params$workdir
+timestamp <- params$timestamp
+auto_save <- params$auto_save
+
+```
+
+## Loading library
+
+```{r library}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(Seurat)
+library(liana)
+library(nichenetr)
+library(CellChat)
+library(future)
+
+# required to download expression data /w slow connection
+options(timeout=600)
+
+```
+
+## Loading Seurat object
+
+```{r loading_rds}
+
+# Reading seurat object
+seurat_object <- readRDS(file = project_object)
+
+# Setting random seed
+random_seed <- 2203
+set.seed(random_seed)
+
+```
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+
+celltypist <- read_csv(file = "./data/celltypist/predicted_labels.csv") %>%
+  tibble::column_to_rownames(var = "...1")
+
+seurat_object <- AddMetaData(object = seurat_object, celltypist)
+```
+
+```{r}
+
+seurat_object@meta.data <- seurat_object@meta.data %>%
+  mutate(
+    sctype = case_when(
+      sctype == "Unknown" ~ "Myeloid",
+      .default = as.character(sctype)
+    )
+  )
+
+```
+
+```{r}
+
+DimPlot(
+    seurat_object, 
+    reduction = 'umap',
+    group.by = 'sctype',
+    raster = FALSE,
+    label = TRUE,
+    label.size = 8
+      ) +
+    theme(
+        legend.position = 'top',
+        legend.justification = 'center'
+    ) +
+  labs(
+      title = "scType"
+  )
+
+```
+
+```{r}
+#| fig-width: 8
+#| fig-height: 12
+
+DimPlot(
+  seurat_object, 
+  reduction = 'umap',
+  group.by = 'majority_voting',
+  raster = FALSE,
+  label = FALSE) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  ) +
+  guides(
+    col = guide_legend(ncol = 1, override.aes = list(size = 2))
+    ) + 
+  labs(
+    title = "Celltypist"
+  ) +
+  theme(
+    legend.position = "right"
+  )
+
+```
+
+```{r}
+
+cell_classification <- seurat_object@meta.data %>%
+  tibble::rownames_to_column(var = "barcode") %>%
+  select(barcode, sctype, majority_voting)
+
+```
+
+```{r}
+
+cell_cross_table <- table(cell_classification$sctype, cell_classification$majority_voting)
+
+# Convert counts to probabilities
+col_sums <- colSums(cell_cross_table)
+cell_cross_table <- round(
+  cell_cross_table / col_sums[col(cell_cross_table)], digits = 3)
+
+#
+
+cell_cross_table <- cell_cross_table %>% 
+  as.data.frame() %>%
+  tidyr::pivot_wider(names_from = "Var1", values_from = "Freq")
+
+```
+
+```{r}
+
+library(RColorBrewer)
+
+cell_cross_table <- cell_cross_table %>%
+  tibble::column_to_rownames(var = "Var2")
+
+pheatmap::pheatmap(
+  cell_cross_table, 
+  cutree_cols = 7,
+  color = colorRampPalette(brewer.pal(n = 7, name = "Blues"))(100),
+  )
+
+```
+
+## LIANA Analysis
+
+```{r}
+
+liana_results <- liana_wrap(seurat_object, idents_col = "sctype") %>%
+  liana_aggregate()
+
+```
+
+You can add options to executable code like this
+
+```{r}
+
+liana_results
+
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+#| fig-width: 12
+#| fig-height: 20
+
+liana_results %>%
+  liana_dotplot(source_groups = c("T-Cells", "Fibroblast", "NK Cells", "Endothelial Cells", "Myeloid", "Epithelial", "B/Plasma Cells"),
+                target_groups = c("T-Cells", "Fibroblast", "NK Cells", "Endothelial Cells", "Myeloid", "Epithelial", "B/Plasma Cells"),
+                ntop = 20) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  )
+
+```
+
+```{r}
+
+liana_trunc <- liana_results %>%
+  filter(aggregate_rank <= 0.01) # note that these pvals are already corrected
+
+heat_freq(liana_trunc)
+
+
+```
+
+```{r}
+
+chord_freq(liana_trunc)
+
+```
+
+```{r}
+
+cellchat <- createCellChat(object = seurat_object, group.by = "sctype")
+
+```
+
+```{r}
+
+CellChatDB <- CellChatDB.human
+showDatabaseCategory(CellChatDB)
+
+```
+
+```{r}
+
+# use a subset of CellChatDB for cell-cell communication analysis
+CellChatDB.use <- subsetDB(CellChatDB, search = "Secreted Signaling") 
+
+# use Secreted Signaling
+cellchat@DB <- CellChatDB.use
+
+```
+
+```{r}
+
+cellchat <- subsetData(cellchat)
+future::plan("multisession", workers = 4) # do parallel
+
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+
+```
+
+```{r}
+
+cellchat <- computeCommunProb(cellchat)
+cellchat <- filterCommunication(cellchat, min.cells = 10)
+
+cellchat <- computeCommunProbPathway(cellchat)
+cellchat <- aggregateNet(cellchat)
+
+```
+
+```{r}
+
+groupSize <- as.numeric(table(cellchat@idents))
+
+par(mfrow = c(1,2), xpd=TRUE)
+
+netVisual_circle(cellchat@net$count, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Number of interactions")
+netVisual_circle(cellchat@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
+
+```
+
+```{r}
+
+mat <- cellchat@net$weight
+par(mfrow = c(3,4), xpd=TRUE)
+for (i in 1:nrow(mat)) {
+  mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  mat2[i, ] <- mat[i, ]
+  netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
+}
+
+
+```
+
+```{r}
+
+pathways.show <- c("CXCL") 
+# Hierarchy plot
+# Here we define `vertex.receive` so that the left portion of the hierarchy plot shows signaling to fibroblast and the right portion shows signaling to immune cells 
+vertex.receiver = seq(1,4) # a numeric vector. 
+netVisual_aggregate(cellchat, signaling = pathways.show,  vertex.receiver = vertex.receiver)
+# Circle plot
+par(mfrow=c(1,1))
+netVisual_aggregate(cellchat, signaling = pathways.show, layout = "circle")
+
+```
+
+```{r}
+
+# Chord diagram
+par(mfrow=c(1,1))
+netVisual_aggregate(cellchat, signaling = pathways.show, layout = "chord")
+
+
+```
+
+```{r}
+
+# Heatmap
+par(mfrow=c(1,1))
+netVisual_heatmap(cellchat, signaling = pathways.show, color.heatmap = "Reds")
+
+```
+
+```{r}
+
+# Chord diagram
+group.cellType <- c(rep("FIB", 4), rep("DC", 4), rep("TC", 4)) # grouping cell clusters into fibroblast, DC and TC cells
+names(group.cellType) <- levels(cellchat@idents)
+netVisual_chord_cell(cellchat, signaling = pathways.show, group = group.cellType, title.name = paste0(pathways.show, " signaling network"))
+
+```
+
+```{r}
+
+netAnalysis_contribution(cellchat, signaling = pathways.show)
+
+```
+
+```{r}
+
+# show all the significant interactions (L-R pairs) from some cell groups (defined by 'sources.use') to other cell groups (defined by 'targets.use')
+netVisual_bubble(cellchat, sources.use = 4, targets.use = c(5:11), remove.isolate = FALSE)
+#> Comparing communications on a single object
+
+
+```
+
+```{r}
+
+library(NMF)
+library(ggalluvial)
+
+selectK(cellchat, pattern = "outgoing")
+
+```
+
+```{r}
+
+counts <- as.data.frame(counts)
+write.csv(
+  counts, 
+  file = "./data/communication/ovarian_counts.csv"
+  )
+
+```
+
+```{r}
+
+library(scCATCH)
+
+counts <- seurat_object@assays$RNA$counts
+cluster <- seurat_object@meta.data$seurat_clusters
+
+#
+
+cell_markers <- read_csv(file = "./cell_markers_database.csv")
+cell_markers <- cell_markers %>%
+  mutate(
+    species = "Human",
+    tissue = "All",
+    cancer = "Normal",
+    subtype1 = NA,
+    subtype2 = NA,
+    subtype3 = NA,
+    resource  = NA,
+    pmid = NA
+  )
+
+cell_markers <- cell_markers %>%
+  rename(
+    gene = markers,
+    celltype = annotation
+  )
+
+#
+
+obj <- createscCATCH(data = counts, cluster = as.character(cluster))
+
+#
+
+obj <- findmarkergene(
+  object = obj,
+  species = "Human",
+  tissue = "All",
+  marker = cell_markers,
+  cancer = "Normal"
+)
+
+```
+
+```{r}
+
+obj <- findcelltype(obj)
+
+```
+
+```{r}
+
+obj@celltype
+
+```
+
+```{r}
+
+```
