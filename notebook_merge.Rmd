@@ -190,7 +190,7 @@ elbow_plot
 
 if(auto_save) {
   
-  saveRDS(seurat_object, file = paste0('data/', project_name, '_merged_object.RDS'))
+  #saveRDS(seurat_object, file = paste0('data/', project_name, '_merged_object.RDS'))
   
 }
 
