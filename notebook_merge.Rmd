@@ -81,13 +81,13 @@ library(Seurat)
 
 ```{r project_directory}
 
-#if(!dir.exists(work_directory)) {
-#  dir.create(work_directory, recursive = T)
-#}
+if(!dir.exists(work_directory)) {
+  dir.create(work_directory, recursive = T)
+}
 
-#for(sub_directory in c('data', 'figures', 'figures/merge')) {
-#  dir.create(paste0(work_directory, '/', sub_directory))
-#}
+for(sub_directory in c('data', 'figures', 'figures/merge')) {
+  dir.create(paste0(work_directory, '/', sub_directory))
+}
 
 ```
 
@@ -176,7 +176,7 @@ elbow_plot <- ElbowPlot(object = seurat_object, ndims = 100)
 # Saving Elbow Plot
 if(auto_save) {
   
-  #ggsave(plot = elbow_plot, filename = 'figures/normalized/Elbow_plots.pdf')
+  ggsave(plot = elbow_plot, filename = 'figures/normalized/Elbow_plots.pdf')
   
 }
 
@@ -190,7 +190,7 @@ elbow_plot
 
 if(auto_save) {
   
-  #saveRDS(seurat_object, file = paste0('data/', project_name, '_merged_object.RDS'))
+  saveRDS(seurat_object, file = paste0('data/', project_name, '_merged_object.RDS'))
   
 }
 
