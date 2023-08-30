@@ -176,7 +176,7 @@ elbow_plot <- ElbowPlot(object = seurat_object, ndims = 100)
 # Saving Elbow Plot
 if(auto_save) {
   
-  ggsave(plot = elbow_plot, filename = 'figures/normalized/Elbow_plots.pdf')
+  ggsave(plot = elbow_plot, filename = 'figures/merge/Elbow_plots.pdf')
   
 }
 
