@@ -93,6 +93,9 @@ for(sub_directory in c('data', 'figures', 'figures/annotation')) {
   dir.create(paste0(work_directory, '/', sub_directory))
 }
 
+# Cirro-related edition
+file.create('figures/annotation/.empty')
+
 ```
 
 ## Loading Seurat object

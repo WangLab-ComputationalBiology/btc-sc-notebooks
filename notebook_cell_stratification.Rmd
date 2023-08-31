@@ -101,8 +101,13 @@ if(!dir.exists(work_directory)) {
 }
 
 for(sub_directory in c('data', 'figures', 'figures/stratification')) {
+  
   dir.create(paste0(work_directory, '/', sub_directory))
+
 }
+
+# Cirro-related edition
+file.create('figures/stratification/.empty')
 
 ```
 
@@ -597,7 +602,8 @@ infercnv_cluster_cnv <- infercnv_cluster_cnv %>%
     )
   )
 
-# 
+#
+
 infercnv_label_matrix <- infercnv_cluster_cnv %>%
   select(seurat_clusters, infercnv_label) %>%
   tibble::column_to_rownames(var = "seurat_clusters")
