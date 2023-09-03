@@ -84,12 +84,6 @@ library(SCEVAN)
 library(infercnv)
 library(annotables)
 
-if(!require("annotables")) {
-  devtools::install_github("stephenturner/annotables", repos = 'http://cran.us.r-project.org')
-}
-
-library(annotables)
-
 ```
 
 ## Folder structure
