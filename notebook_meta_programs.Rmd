@@ -126,7 +126,7 @@ input_cell_category <- intersect(
 'Macrophages', 'Malignant')
 )
 
-meta_programs <- meta_programs_db %>%
+meta_programs_db <- meta_programs_db %>%
   filter(source %in% input_cell_category)
 
 ```
@@ -152,11 +152,10 @@ DimPlot(
 
 ```{r calculating_module_score}
 
-
 # Converting to list
 meta_programs <- split(
-  meta_programs$gene_marker,
-  meta_programs$meta_program
+  meta_programs_db$gene_marker,
+  meta_programs_db$meta_program
   )
 
 # Fixing meta-programs names
@@ -271,7 +270,8 @@ FeaturePlot(
 if(auto_save) {
   
   saveRDS(seurat_object, file = paste0('data/', project_name, '_', input_meta_step, '_meta_object.RDS'))
-  
+  write_tsv(meta_programs_db, file = paste0('data/meta_programs_db.tsv'))
+
 }
 
 ```

@@ -423,7 +423,7 @@ ggplot(seurat_cluster_composition, aes(x = sctype, y = percentage, fill = seurat
 if(auto_save) {
   
   saveRDS(seurat_object, file = paste0('data/', project_name, '_annotation_object.RDS'))
-  
+  write_tsv(cell_markers_database, file = paste0('data/cell_markers_database.tsv'))
 }
 
 ```
