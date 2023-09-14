@@ -303,12 +303,12 @@ sample_metrics_upgrade <- sample_metrics %>%
     sample_id = sample_name,
     n_total_cells = n_total_cells,
     n_thr_features_cells = n_total_cells,
-    n_thr_mito_cells = n_observed_cells,
+    n_observed_cells = n_observed_cells,
     status_flag = status_flag
   )
 
 sample_metrics_upgrade <- sample_metrics_upgrade %>%
-    select(sample_id, status_flag, estimate_n_cells, mean_reads_per_cell, median_genes_per_cell, median_genes_per_cell, median_umi_per_cell, seq_saturation, n_total_cells, n_thr_features_cells, n_thr_mito_cells)
+    select(sample_id, status_flag, estimate_n_cells, mean_reads_per_cell, median_genes_per_cell, median_genes_per_cell, median_umi_per_cell, seq_saturation, n_total_cells, n_thr_features_cells, n_observed_cells)
 
 write_csv(sample_metrics_upgrade, file = paste0(sample_name, '_metrics_upgrade.csv'))
 
