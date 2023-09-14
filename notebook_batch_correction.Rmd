@@ -78,6 +78,7 @@ library(ggplot2)
 library(Seurat)
 library(SeuratWrappers)
 library(harmony)
+library(batchelor)
 library(kBET)
 
 ```
