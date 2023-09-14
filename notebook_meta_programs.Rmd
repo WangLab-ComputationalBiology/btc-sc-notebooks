@@ -148,6 +148,7 @@ DimPlot(
   )
 
 ```
+
 ## Module-score
 
 ```{r calculating_module_score}

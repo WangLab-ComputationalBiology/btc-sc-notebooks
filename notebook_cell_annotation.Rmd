@@ -34,7 +34,8 @@ project_object <- params$project_object
 
 # Inputs and thresholds
 input_cell_markers_db <- params$input_cell_markers_db
-input_annotation_level <- params$input_annotation_level
+input_annotation_level <- strsplit(
+  params$input_annotation_level, split = ';')[[1]]
 
 # Optional parameters
 
@@ -223,7 +224,7 @@ set.seed(random_seed)
 # Get cell-type-specific gene sets from our in-built database (DB)
 cell_markers_database <- read_csv(file = input_cell_markers_db)
 cell_markers_database <- cell_markers_database %>%
-  filter(cell_type == input_annotation_level) %>%
+  filter(cell_type %in% input_annotation_level) %>%
   as.data.frame()
 
 ```
