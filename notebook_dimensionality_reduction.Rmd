@@ -91,7 +91,7 @@ for(sub_directory in c('data', 'figures', 'figures/reduction')) {
 }
 
 # Cirro-related edition
-file.create('figures/reduction/.empty')
+file.create(c('figures/merge/.empty', '.dummy'))
 
 ```
 

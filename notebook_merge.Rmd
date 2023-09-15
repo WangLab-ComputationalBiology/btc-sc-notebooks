@@ -90,8 +90,8 @@ for(sub_directory in c('data', 'figures', 'figures/merge')) {
 }
 
 # Cirro-related edition
-file.create('figures/merge/.empty')
- 
+file.create(c('figures/merge/.empty', '.dummy'))
+
 ```
 
 ## Merging and Normalizing
