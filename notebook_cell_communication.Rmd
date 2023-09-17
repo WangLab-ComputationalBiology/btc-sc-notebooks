@@ -14,7 +14,6 @@ output:
 params:
   project_name: 'Test'
   project_object: './data/Test_annotation_object.RDS'
-  input_model_organism: 'human'
   input_source_groups: 'all'
   input_target_groups: 'all'
   input_cellchat_annotation: "Secreted Signaling"
