@@ -131,7 +131,7 @@ set.seed(random_seed)
 
 ## Unifying sample layers
 
-```{r seurat_rejoin}
+```{r seurat_rejoin, message = FALSE, warning = FALSE, echo = FALSE}
 
 seurat_object <- JoinLayers(seurat_object)
 
