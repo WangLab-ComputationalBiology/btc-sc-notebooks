@@ -1,36 +1,30 @@
 ---
 title: "Module - Cell communication"
-format:
-  html:
-    theme: cosmo
-    code-copy: true
-    code-fold: true
-    code-summary: "Show the code"
-    fig-align: center
-    fig-responsive: true
-    fig-width: 8
-    fig-height: 12
-    default-image-extension: svg
-execute: 
-  warning: false
-  error: true
-editor: visual
+author: "BTC scRNA Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth: 4
+    code_folding: show
+    self_contained: TRUE
+    theme: united
+    df_print: paged
 params:
   project_name: 'Test'
-  project_object: './data/Ovarian_nonMalignant_cluster_object.RDS'
+  project_object: './data/Test_normalize_object.RDS'
   input_model_organism: 'human'
   n_threads: 8
-  n_memory: 16
-  fig-width: 10
-  workdir: "`!r here::here()`"
-  timestamp: "`!r Sys.Date()`"
+  n_memory: 8
+  workdir: !r here::here()
+  timestamp: !r Sys.Date()
   auto_save: TRUE
 ---
 
 # Project Name: `r params$project_name`
 
-```{r setup}
-#| echo: false
+```{r setup, include = FALSE, message = FALSE, warning = FALSE, echo = FALSE}
 
 # Project parameters 
 project_name <- params$project_name
@@ -38,8 +32,6 @@ project_object <- params$project_object
 
 # Inputs and thresholds
 input_model_organism <- params$input_model_organism
-
-# Optional parameters
 
 # Dataflow/Computational parameters
 n_threads <- params$n_threads
@@ -49,6 +41,21 @@ n_memory <- params$n_memory
 work_directory <- params$workdir
 timestamp <- params$timestamp
 auto_save <- params$auto_save
+
+# Rmarkdown options
+knitr::opts_chunk$set(
+	echo = TRUE,
+	error = TRUE,
+	fig.align = "center",
+	fig.height = 8,
+	fig.width = 12,
+	message = FALSE,
+	warning = FALSE,
+	dpi = 300
+)
+knitr::opts_knit$set(
+  root.dir = work_directory
+  )
 
 ```
 
