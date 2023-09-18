@@ -171,7 +171,7 @@ liana_results
 
 ```
 
-```{r}
+```{r liana_dotplot, fig.height = 12, fig.width = 24}
 
 liana_results %>%
   liana_dotplot(source_groups = input_source_groups,
