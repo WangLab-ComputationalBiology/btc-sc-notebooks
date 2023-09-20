@@ -12,8 +12,8 @@ output:
     df_print: paged
 params:
   project_name: 'Test'
-  project_object: '/Users/affaustino/Projects/btc-scrna-pipeline/Test/Ovarian/data/Ovarian_nonMalignant_batch_object.RDS'
-  input_integration_evaluate: 'harmony'
+  project_object: 'data/Test_nonMalignant_batch_object.RDS'
+  input_integration_evaluate: 'all'
   input_target_variables: 'batch'
   input_batch_step: 'nonMalignant'
   input_lisi_variables: 'cLISI;iLISI'
