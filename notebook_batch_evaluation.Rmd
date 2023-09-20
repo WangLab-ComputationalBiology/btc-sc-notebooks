@@ -12,8 +12,8 @@ output:
     df_print: paged
 params:
   project_name: 'Test'
-  project_object: './data/Test_nonMalignant_batch_object.RDS'
-  input_integration_evaluate: 'all'
+  project_object: '/Users/affaustino/Projects/btc-scrna-pipeline/Test/Ovarian/data/Ovarian_nonMalignant_batch_object.RDS'
+  input_integration_evaluate: 'harmony'
   input_target_variables: 'batch'
   input_batch_step: 'nonMalignant'
   input_lisi_variables: 'cLISI;iLISI'
@@ -273,12 +273,21 @@ for (batch_method in integration_method_vector) {
   
 }
 
-scpop_zscore <- scpop_zscore <- calc_sumZscore(
-  lapply(names(quality_metrics_summarise), function(id_method) {
-    quality_metrics_summarise[[id_method]][1:9]
-  }),
-  'batch'
+if(length(names(quality_metrics_summarise)) > 1) {
+
+  scpop_zscore <- calc_sumZscore(
+    lapply(names(quality_metrics_summarise), function(id_method) {
+      quality_metrics_summarise[[id_method]][2:9]
+    }),
+    'batch'
   )
+  
+} else {
+  
+  scpop_zscore <- "NA"
+  
+}
+
 
 ```
 
@@ -332,8 +341,18 @@ for(batch_method in integration_method_vector) {
   )
 }
 
-integration_umap$integrated.cca + integration_umap$integrated.rpca + integration_umap$harmony + integration_umap$integrated.mnn +
+if(input_integration_evaluate == "all") {
+
+  integration_umap$integrated.cca + integration_umap$integrated.rpca + integration_umap$harmony + integration_umap$integrated.mnn +
   plot_layout(ncol = 2)
+  
+} else {
+  
+  
+  integration_umap[[integration_method_vector]]
+  
+}
+
 
 ```
 
@@ -359,8 +378,17 @@ for(batch_method in integration_method_vector) {
   )
 }
 
-clustering_umap$integrated.cca + clustering_umap$integrated.rpca + clustering_umap$harmony + clustering_umap$integrated.mnn +
-  plot_layout(ncol = 2)
+
+if(input_integration_evaluate == "all") {
+
+  clustering_umap$integrated.cca + clustering_umap$integrated.rpca + clustering_umap$harmony + clustering_umap$integrated.mnn +
+    plot_layout(ncol = 2)
+  
+} else {
+  
+  clustering_umap[[integration_method_vector]]
+  
+}
 
 ```
 
