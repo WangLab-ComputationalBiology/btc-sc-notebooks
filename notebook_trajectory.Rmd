@@ -1,0 +1,448 @@
+---
+title: "Module - Cell trajectory"
+author: "BTC Pipeline"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth: 4
+    code_folding: show
+    theme: united
+    df_print: paged
+    self_contained: TRUE
+params:
+  project_name: 'Test'
+  project_object: './data/Test_nonMalignant_stratification_object.RDS'
+  input_cell_markers_db: './cell_markers_database.csv'
+  input_annotation_level: 'Major cells'
+  n_threads: 8
+  n_memory: 16
+  workdir: !r here::here()
+  timestamp: !r Sys.Date()
+  auto_save: TRUE
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+
+library(Seurat)
+library(SeuratWrappers)
+library(harmony)
+library(monocle3)
+library(ggplot2)
+library(dplyr)
+library(scATOMIC)
+library(dyno)
+
+# https://rpubs.com/mahima_bose/Seurat_and_Monocle3_p
+# https://cole-trapnell-lab.github.io/monocle3/docs/differential/
+
+```
+
+```{r cytotrace}
+
+source("/Users/affaustino/Projects/dev/btc-scrna-pipeline/notebook/third/CytoTRACE/R/CytoTRACE.R")
+source("/Users/affaustino/Projects/dev/btc-scrna-pipeline/notebook/third/CytoTRACE/R/plotCytoTRACE.R")
+
+```
+
+```{r}
+#| echo: false
+
+project_object <- '/Users/affaustino/Projects/dev/btc-scrna-pipeline/Test/Ovarian/data/Ovarian_nonMalignant_cluster_object.RDS'
+
+seurat_object <- readRDS(file = project_object)
+seurat_object$sctype <- ifelse(
+  seurat_object$sctype == "Unknown", "Myeloid", seurat_object$sctype
+)
+
+table(seurat_object$sctype)
+
+```
+
+```{r}
+
+DimPlot(
+  seurat_object,
+  reduction = 'umap',
+  group.by = 'sctype',
+  label = TRUE,
+  label.size = 12
+  ) +
+  theme(
+    legend.position = 'top',
+    legend.justification = 'center'
+  )
+
+```
+
+```{r compartiment_selection}
+
+compartiment_object <- subset(
+  seurat_object, subset = sctype == "NK Cells")
+
+```
+
+```{r cyto_counts}
+
+compartiment_counts <- GetAssayData(
+    object = compartiment_object, slot = "counts")
+
+cyto_results <- CytoTRACE(compartiment_counts)
+
+```
+
+```{r}
+
+# cell_predictions <- run_scATOMIC(compartiment_counts)
+
+```
+
+```{r cytotrace}
+
+compartiment_scytpe <- setNames(
+    as.character(compartiment_object$seurat_clusters), names(compartiment_object$seurat_clusters))
+
+plotCytoTRACE(cyto_results, phenotype = compartiment_scytpe)
+
+```
+
+```{r}
+
+write.table(as.matrix(compartiment_counts),
+            file = '/Users/affaustino/Downloads/nkcell_counts.csv',
+            sep = ',', row.names = T, col.names = T, quote = F)
+
+
+```
+
+```{r}
+
+thr_n_features <- 2000
+thr_npc <- 25
+
+#
+
+compartiment_object <- NormalizeData(
+  object = compartiment_object,
+  normalization.method = "LogNormalize",
+  scale.factor = 10000)
+
+compartiment_object <- FindVariableFeatures(
+  compartiment_object, selection.method = "vst", nfeatures = thr_n_features)
+
+compartiment_object <- ScaleData(
+    compartiment_object
+    )
+
+#
+
+compartiment_object <- RunPCA(
+    compartiment_object, verbose = FALSE, npcs = 100)
+
+#
+
+compartiment_object <- IntegrateLayers(
+  object = compartiment_object,
+  method = HarmonyIntegration,
+  orig.reduction = "pca",
+  new.reduction = "harmony",
+  group.by = input_target_variables,
+  verbose = FALSE
+)
+
+#
+
+compartiment_object <- FindNeighbors(
+    object = compartiment_object,
+    reduction = 'harmony',
+    dims = 1:thr_npc,
+    graph.name = paste0('snn_npc', thr_npc)
+)
+
+compartiment_object <- FindClusters(
+    object = compartiment_object,
+    graph.name = paste0('snn_npc', thr_npc),
+    resolution = 0.50
+)
+
+# Running UMAP reduction
+compartiment_object <- RunUMAP(
+    object = compartiment_object,
+    reduction = 'harmony',
+    dims = 1:thr_npc,
+    seed.use = 42
+)
+
+```
+
+```{r}
+
+DimPlot(compartiment_object, group.by = "batch")
+
+```
+
+```{r}
+
+celltypist <- readr::read_csv(
+    file = "./data/nkcell2/predicted_labels.csv",
+    skip = 1,
+    col_names = c("barcode", "predicted_labels", "over_clustering", "majority_voting"))
+
+celltypist <- celltypist %>%
+    arrange(factor(barcode, levels = row.names(compartiment_object@meta.data)))
+
+celltypist
+
+```
+
+```{r}
+
+compartiment_object@meta.data[['CytoTRACE']] <- cyto_results$CytoTRACE
+compartiment_object@meta.data[['Celltypist']] <- celltypist$majority_voting
+
+```
+
+```{r}
+
+DimPlot(compartiment_object, group.by = "Celltypist", label = TRUE, label.size = 8, pt.size = 3)
+
+```
+
+
+```{r}
+
+DimPlot(compartiment_object, label = TRUE, label.size = 8, pt.size = 3)
+
+```
+
+
+```{r}
+
+FeaturePlot(
+    compartiment_object, features = "CytoTRACE", cols = c("red", "blue"), pt.size = 3)
+
+```
+
+```{r}
+
+cluster_deg <- FindAllMarkers(
+    compartiment_object,
+    max.max.cells.per.ident = 1000,
+)
+
+```
+
+```{r}
+
+t_cell_markers <-
+    c("CD3E", "CD4", "CD8A", "LEF1", "CCR7", "SELL", "GZMB", "GZMK", "GNLY", "HAVCR2", "LAG3", "PDCD1", "CTLA4", "CXCR5", "CXCL13")
+
+FeaturePlot(
+    compartiment_object,
+    features = t_cell_markers)
+
+```
+
+```{r}
+
+monocle_object <- as.cell_data_set(compartiment_object)
+fData(monocle_object)
+rownames(fData(monocle_object))[1:10]
+
+```
+
+```{r}
+
+fData(monocle_object)$gene_short_name <- rownames(fData(monocle_object))
+head(fData(monocle_object))
+
+```
+
+```{r}
+
+recreate.partitions <- c(rep(1, length(monocle_object@colData@rownames)))
+names(recreate.partitions) <- monocle_object@colData@rownames
+
+recreate.partitions <- as.factor(recreate.partitions)
+monocle_object@clusters@listData[["UMAP"]][["partitions"]] <- recreate.partitions
+
+```
+
+```{r}
+
+list.cluster <- compartiment_object$seurat_clusters
+monocle_object@clusters@listData[["UMAP"]][["clusters"]] <- list.cluster
+
+```
+
+```{r}
+
+monocle_object@int_colData@listData[["reducedDims"]]@listData[["UMAP"]] <-
+    compartiment_object@reductions$umap@cell.embeddings
+
+```
+
+```{r}
+
+plot_cells(
+  monocle_object,
+  color_cells_by = "cluster",
+  label_groups_by_cluster = F,
+  group_label_size = 12,
+  cell_size = 1.5) +
+    theme(legend.position = "bottom")
+
+```
+
+```{r}
+
+monocle_object <- learn_graph(monocle_object, use_partition = FALSE)
+
+```
+
+```{r}
+
+plot_cells(
+  monocle_object,
+  color_cells_by = "cluster",
+  label_groups_by_cluster = F,
+  label_branch_points = T,
+  label_roots = T,
+  label_leaves = F,
+  group_label_size = 12,
+  cell_size = 1.5,
+  )
+
+```
+
+```{r}
+
+# a helper function to identify the root principal points:
+get_earliest_principal_node <- function(cds, cluster_name = "5") {
+
+  cell_ids <- which(colData(cds)[, "seurat_clusters"] == cluster_name)
+  closest_vertex <-
+    cds@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds), ])
+  root_pr_nodes <-
+    igraph::V(principal_graph(cds)[["UMAP"]])$name[as.numeric(names(which.max(table(closest_vertex[cell_ids,]))))]
+
+  root_pr_nodes
+
+}
+
+```
+
+```{r}
+
+# get_earliest_principal_node(monocle_object)
+monocle_object <- order_cells(monocle_object, reduction_method = 'UMAP', root_pr_nodes = get_earliest_principal_node(monocle_object))
+
+plot_cells(
+  monocle_object,
+  color_cells_by = "pseudotime",
+  trajectory_graph_segment_size = 1,
+  cell_size = 1.5,
+  label_groups_by_cluster = FALSE,
+  label_branch_points = TRUE,
+  label_roots = TRUE,
+  graph_label_size = 5,
+  label_leaves = F
+  )
+
+```
+
+```{r}
+
+deg <- graph_test(monocle_object, neighbor_graph = "principal_graph")
+deg %>%
+  arrange(q_value) %>%
+  filter(status == "OK")
+
+```
+
+```{r}
+
+FeaturePlot(compartiment_object, features = c("HES4", "ISG15", "AGRN", "TTLL10"))
+
+```
+
+```{r}
+
+compartiment_object$pseudotime <- pseudotime(monocle_object)
+RidgePlot(
+    compartiment_object, group.by = "seurat_clusters", features = "pseudotime")
+
+```
+
+```{r}
+
+library(slingshot)
+library(SingleCellExperiment)
+
+sce_object <- as.SingleCellExperiment(compartiment_object, assay = "RNA")
+sce_object <- slingshot(
+    sce_object, reducedDim = 'UMAP', clusterLabels = colData(sce_object)$seurat_clusters)
+
+sce_object <- colData(sce_object)$slingPseudotime_1
+sce_object <- colData(sce_object)$slingPseudotime_2
+
+# Plot the trajectories on the UMAP plot
+plot(rd, col = rainbow(100)[cut(pseudotime, breaks = 100)], pch = 16, asp = 1)
+lines(SlingshotDataSet(sds), lwd = 2)
+
+# You can also integrate the results back into the Seurat object if desired
+seurat_obj[["pseudotime"]] <- pseudotime
+Seurat::DimPlot(seurat_obj, group.by = "pseudotime")
+
+
+```
+
+```{r}
+
+data("fibroblast_reprogramming_treutlein")
+
+dataset <- wrap_expression(
+  counts = compartiment_object@assays$RNA$counts,
+  expression = compartiment_object@assays$RNA$data
+)
+
+guidelines <- guidelines_shiny(dataset)
+methods_selected <- guidelines$methods_selected
+
+model <- infer_trajectory(dataset, "slingshot")
+
+```
+
+```{r}
+
+model <- model %>% add_dimred(dyndimred::dimred_mds, expression_source = dataset$expression)
+plot_dimred(
+  model,
+  expression_source = dataset$expression,
+  grouping = fibroblast_reprogramming_treutlein$grouping
+)
+
+
+```
+
+```{r}
+
+compartiment_object_old <- compartiment_object
+compartiment_object_old[["RNA"]] <- as(
+    object = compartiment_object[["RNA"]], Class = "Assay")
+
+sceasy::convertFormat(compartiment_object_old, from = "seurat", to = "anndata",
+                       outFile = './data/compartiment_object.h5ad')
+
+```

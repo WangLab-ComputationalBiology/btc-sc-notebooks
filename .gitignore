@@ -4,17 +4,21 @@
 .Ruserdatae
 .DS_Store
 *.RDS
+*.h5*
 
 *.html
 *.zip
 *.tar.gz
 *.gz
 
+third/
 dev/
 data/
 figures/
 infercnv/
 output/
+CytoTrace*
 
+*.qmd
 *_cache
 *_files
