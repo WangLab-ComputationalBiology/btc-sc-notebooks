@@ -37,7 +37,7 @@ params:
 
 ```{r setup, message = FALSE, warning = FALSE, echo = TRUE}
 
-# Project parameters 
+# Project parameters
 project_name <- params$project_name
 sample_name <- params$sample_name
 
@@ -147,21 +147,21 @@ status_flag <- NA
 #
 
 if(all(check_list)) {
-  
+
   status_flag <- "SAMPLE:SUCCESS"
-  
+
 } else {
-  
+
   if(sample_metrics$`Sequencing Saturation` <= 70) {
-    
+
     status_flag <- "SAMPLE:FIXABLE"
-    
+
   } else {
-    
+
     status_flag <- "SAMPLE:FAILURE"
 
   }
-  
+
 }
 
 ```
@@ -188,21 +188,21 @@ seurat_object = CreateSeuratObject(
 
 # Calculating mitochondrial content
 
-seurat_object[["percent_mito"]] <- 
+seurat_object[["percent_mito"]] <-
   PercentageFeatureSet(seurat_object, pattern = "^MT-")
 
 gpdat <- tidyr::gather(
   data.frame(
-      rname = rownames(seurat_object@meta.data), 
+      rname = rownames(seurat_object@meta.data),
       seurat_object@meta.data
     ),
   key = type,
-  value = value, 
+  value = value,
   -rname,
   -orig.ident
   )
 
-mito_plot <- ggplot(data = gpdat, aes(x = orig.ident, y = value)) + 
+mito_plot <- ggplot(data = gpdat, aes(x = orig.ident, y = value)) +
   geom_boxplot(color = '#f8766d', outlier.shape = NA) +
   facet_wrap(~ type, scales = 'free') +
   labs(x = NULL, y = NULL) +
@@ -225,6 +225,9 @@ mito_plot
 # Adding meta-data
 
 meta_data_df <- read_csv(file = meta_data)
+
+print(meta_data_df)
+
 meta_data_df <- meta_data_df %>%
   filter(sample_id == sample_name)
 
@@ -233,9 +236,9 @@ if(nrow(meta_data_df) >= 1) {
     seurat_object@meta.data,
     meta_data_df
   )
-  
+
   print(meta_data_df)
-  
+
 }
 
 ```
@@ -271,13 +274,13 @@ n_observed_cells <- dim(seurat_object)[2]
 if(status_flag == 'SAMPLE:SUCCESS') {
 
   if(n_observed_cells >= thr_n_observed_cells) {
-    
+
     status_flag <- "CELL:SUCCESS"
-    
+
   } else {
-    
+
     status_flag <- "CELL:FAILURE"
-    
+
   }
 
 }
@@ -319,9 +322,9 @@ write_csv(sample_metrics_upgrade, file = paste0(sample_name, '_metrics_upgrade.c
 ```{r object_dump, message = FALSE, warning = FALSE, echo = TRUE}
 
 if(auto_save) {
-  
+
   saveRDS(seurat_object, file = paste0('objects/', sample_name, '_seurat_object.RDS'))
-  
+
 }
 
 ```
