@@ -226,8 +226,6 @@ mito_plot
 
 meta_data_df <- read_csv(file = meta_data)
 
-print(meta_data_df)
-
 meta_data_df <- meta_data_df %>%
   filter(sample_id == sample_name)
 
